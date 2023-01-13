@@ -1279,11 +1279,6 @@
           Module.setStatus(left ? 'Preparing... (' + (this.totalDependencies-left) + '/' + this.totalDependencies + ')' : 'All downloads complete.');
         }
       };
-      Module["js_talker"] = function js_talker(message)
-      {
-          console.log("  [JS] Received " + message);
-          return 0;
-      };
       Module.setStatus('Downloading...');
       window.onerror = function(event) {
         // TODO: do not warn on ok events like simulating an infinite loop or exitStatus
