@@ -12,3 +12,5 @@ cmake_args.last
 _deps
 ament_cmake*
 colcon*
+.vscode
+old_build
