@@ -26,6 +26,8 @@
         
         function startTalker() {
 
+            document.getElementById("result").innerHTML = "Initializing publisher...\n";
+
             if (typeof(worker) == "undefined") {
                 worker = new Worker("publisher/talker.js");
             }
