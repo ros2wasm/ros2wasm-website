@@ -25,7 +25,6 @@ Module["js_talker"] = function js_talker(message)
 
 Module["js_listener"] = function js_listener()
 {
-    console.log(" [JS] I'm listening...");
     let js_message = "data: FAKE JS MESSAGE";
     return js_message;
 };

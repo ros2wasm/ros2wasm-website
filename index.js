@@ -28,6 +28,76 @@ class Queue {
   
 let msg_queue = new Queue();
 
+let listener;
+
+function startListener() {
+
+    let last_message = "data: No data yet";
+    let new_message;
+
+    document.getElementById("listenerOutput").innerHTML = "Initializing subscriber...\n";
+
+    if (typeof(listener) == "undefined") {
+        listener = new Worker("pubsub/listener.js");
+    }
+
+    listener.addEventListener('message', function(e) {
+        let message = e.data;
+    })
+
+    // listener.onmessage = function(event) {
+    // let count = 0;
+    // while (count < 1000) {
+
+    let que_lenght = msg_queue.length;
+    console.log("QUELENGHT: " + que_lenght);
+    if (!msg_queue.isEmpty) {
+        console.log("QUE IS NOT EMPTY " + msg_queue.length);
+        new_message = msg_queue.dequeue();
+        console.log("DEQUE: " + new_message.data);
+    } else {
+        new_message = {"data": "data: all empty"};
+    }
+    // new_message = (msg_queue.isEmpty()) ? {"data": "data: empty"} : msg_queue.peek();
+    if (new_message != last_message) {
+        document.getElementById("listenerOutput").innerHTML += new_message.data + "\n";
+        last_message = new_message;
+    }
+    listener.postMessage(new_message.data);
+        // count++;
+    // }
+        // return new_message;
+    // }
+    listener.onmessage = function(event) {
+        console.log("I WAS CALLED");
+        if (!msg_queue.isEmpty) {
+            console.log("QUE IS NOT EMPTY " + msg_queue.length);
+            new_message = msg_queue.dequeue();
+            console.log("DEQUE: " + new_message.data);
+        } else {
+            new_message = {"data": "data: all empty"};
+        }
+        // new_message = (msg_queue.isEmpty()) ? {"data": "data: empty"} : msg_queue.peek();
+        if (new_message != last_message) {
+            document.getElementById("listenerOutput").innerHTML += new_message.data + "\n";
+            last_message = new_message;
+        }
+        self.postMessage("data: onmessage from main");
+    }
+
+    // listener.postMessage(new_message);
+}
+
+function stopListener() {
+    listener.terminate();
+    listener = undefined;
+    document.getElementById("listenerOutput").innerHTML += "Subscriber terminated.\n\n";
+}
+
+function clearListener() {
+    document.getElementById("listenerOutput").innerHTML = "";
+}
+
 let publisher;
 
 function startTalker() {
@@ -57,62 +127,3 @@ function stopTalker() {
 function clearTalker() {
     document.getElementById("talkerOutput").innerHTML = "";
 }
-
-let listener;
-
-function startListener() {
-
-    let last_message = "data: No data yet";
-    let new_message = last_message;
-
-    document.getElementById("listenerOutput").innerHTML = "Initializing subscriber...\n";
-
-    if (typeof(listener) == "undefined") {
-        listener = new Worker("pubsub/listener.js");
-    }
-
-    listener.addEventListener('message', function(e) {
-        let message = e.data;
-    })
-
-    let count = 0;
-    while (count < 1000) {
-        console.log("CHECKING NEW MESSAGE");
-        if (!msg_queue.isEmpty) {
-            new_message = msg_queue.peek();
-        }
-        if (new_message != last_message) {
-            console.log("FOUND NEW MESSAGE");
-            listener.postMessage(new_message.data);
-            last_message = new_message;
-            document.getElementById("listenerOutput").innerHTML += new_message.data + "\n";
-        }
-        setTimeout(function(){
-            console.log("Executed after 1 second");
-        }, 1000);
-        count++;
-    }
-    // listener.onmessage = function(event) {
-    //     let msgTaken = (msg_queue.isEmpty) ? {"data": "data: empty"} : msg_queue.peek();
-    //     document.getElementById("listenerOutput").innerHTML += msgTaken.data + "\n";
-    //     listener.postMessage(msgTaken);
-    // }
-}
-
-function stopListener() {
-    listener.terminate();
-    listener = undefined;
-    document.getElementById("listenerOutput").innerHTML += "Subscriber terminated.\n\n";
-}
-
-function clearListener() {
-    document.getElementById("listenerOutput").innerHTML = "";
-}
-
-
-// while (typeof listener != "undefined") {
-//     let msgTaken = (msg_queue.isEmpty) ? {"data": "data: empty"} : msg_queue.peek();
-//     console.log("MESAGE");
-//     console.log(msgTaken);
-//     listener.postMessage(msgTaken);
-// }

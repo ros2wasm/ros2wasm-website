@@ -26,16 +26,20 @@ Module["js_talker"] = function js_talker(message)
 let msg_blank = {"data": "data: nothing nothing"};
 let msg_received;
 
-self.onmessage = function(event) {
-  msg_received = event;
-  console.log("LISTENER ON MESSAGE" + msg_received.data + " END");
+onmessage = function(event) {
+  console.log("INSIDE THE OTHER MATRIX");
+  msg_received = event.data;
+  console.log("LISTENER ON MESSAGE" + msg_received + " END");
 }
 
 Module["js_listener"] = function js_listener()
 {
     console.log(" [JS] I'm listening...");
-    // self.postMessage(" [JS] Listener: I heard something");
-    // self.onmessage()
+
+    self.postMessage("data: what's this good for");
+
+    // console.log("IS THIS ANYTHING");
+    // console.log(self);
 
     let count = 0;
     // msg_received = msg_blank;
