@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ROS2 Publisher</title>
+    <title>ROS2 Publisher and Subscriber</title>
     <link rel="stylesheet" href="style.css">
 </head>
 
@@ -12,46 +12,22 @@
 
     <div class="container">
         <div class="box">
-            <button onclick="startTalker()">Start</button>
-            <button onclick="stopTalker()">Stop</button>
-            <button onclick="clearOutput()">Clear</button>
+            <button onclick="startTalker()">Start Talker</button>
+            <button onclick="stopTalker()">Stop Talker</button>
+            <button onclick="clearTalker()">Clear Talker</button>
+
+            <button onclick="startListener()">Start Listener</button>
+            <button onclick="stopListener()">Stop Listener</button>
+            <button onclick="clearListener()">Clear Listener</button>
         </div>
     </div>
 
-    <textarea id="result"  rows="5"></textarea>
+    <div class="container">
+        <textarea id="talkerOutput"  rows="5"></textarea>
+        <textarea id="listenerOutput"  rows="5"></textarea>
+    </div>
 
-    <script>
-
-        let worker;
-        
-        function startTalker() {
-
-            document.getElementById("result").innerHTML = "Initializing publisher...\n";
-
-            if (typeof(worker) == "undefined") {
-                worker = new Worker("publisher/talker.js");
-            }
-
-            worker.addEventListener('message', function(e) {
-                let data = e.data;
-            })
-
-            worker.onmessage = function(event) {
-                document.getElementById("result").innerHTML += event.data;
-            }
-        }
-
-        function stopTalker() {
-            worker.terminate();
-            worker = undefined;
-            document.getElementById("result").innerHTML += "Publisher terminated.\n\n";
-        }
-
-        function clearOutput() {
-            document.getElementById("result").innerHTML = "";
-        }
-
-    </script>
+    <script src="index.js"></script>
 
 </body>
 
