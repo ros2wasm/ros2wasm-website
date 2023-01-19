@@ -23,37 +23,24 @@ Module["js_talker"] = function js_talker(message)
     return 0;
 };
 
-let msg_blank = {"data": "data: nothing nothing"};
-let msg_received;
+let last_message = "data: No data yet";
+let new_message;
 
-onmessage = function(event) {
-  console.log("INSIDE THE OTHER MATRIX");
-  msg_received = event.data;
-  console.log("LISTENER ON MESSAGE" + msg_received + " END");
+onmessage = function(e) {
+  const message = e.data;
+  new_message = message;
+  console.log(`[FROM MAIN]: ${message}`);
 }
 
 Module["js_listener"] = function js_listener()
 {
     console.log(" [JS] I'm listening...");
 
-    self.postMessage("data: what's this good for");
+    postMessage("data: from worker with less love");
 
-    // console.log("IS THIS ANYTHING");
-    // console.log(self);
-
-    let count = 0;
-    // msg_received = msg_blank;
-    while (msg_blank === msg_received && count < 10000) {
-      // Do nothing
-      count++;
-    }
-    if (typeof msg_received == "undefined") {
-      msg_received = msg_blank;
-    }
-    count = 0;
 
     // console.log("MESSAGE: " + js_message.data);
-    return msg_received.data;
+    return "data: FAKE MESSAGE";
 };
 
 // See https://caniuse.com/mdn-javascript_builtins_object_assign

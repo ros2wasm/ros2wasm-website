@@ -26,13 +26,14 @@ class Queue {
     }
 }
   
-let msg_queue = new Queue();
+// let msg_queue = new Queue();
+let msg_queue = {"data": "data: I'm an empty message"};
+
 
 let listener;
 
 function startListener() {
 
-    let last_message = "data: No data yet";
     let new_message;
 
     document.getElementById("listenerOutput").innerHTML = "Initializing subscriber...\n";
@@ -45,45 +46,50 @@ function startListener() {
         let message = e.data;
     })
 
-    // listener.onmessage = function(event) {
-    // let count = 0;
-    // while (count < 1000) {
+    listener.onmessage = function(e) {
+        const message = e.data;
+        new_message = message;
+        console.log(`[FROM LISTENER]: ${message}`);
+    }
 
-    let que_lenght = msg_queue.length;
-    console.log("QUELENGHT: " + que_lenght);
-    if (!msg_queue.isEmpty) {
-        console.log("QUE IS NOT EMPTY " + msg_queue.length);
-        new_message = msg_queue.dequeue();
-        console.log("DEQUE: " + new_message.data);
-    } else {
-        new_message = {"data": "data: all empty"};
-    }
-    // new_message = (msg_queue.isEmpty()) ? {"data": "data: empty"} : msg_queue.peek();
-    if (new_message != last_message) {
-        document.getElementById("listenerOutput").innerHTML += new_message.data + "\n";
-        last_message = new_message;
-    }
-    listener.postMessage(new_message.data);
+    listener.postMessage("data: from main with no love");
+
+
+    // let que_lenght = msg_queue.length;
+    // console.log("QUELENGHT: " + que_lenght);
+    // if (!msg_queue.isEmpty) {
+    //     console.log("QUE IS NOT EMPTY " + msg_queue.length);
+    //     new_message = msg_queue.dequeue();
+    //     console.log("DEQUE: " + new_message.data);
+    // } else {
+    //     new_message = {"data": "data: all empty"};
+    // }
+    // // new_message = (msg_queue.isEmpty()) ? {"data": "data: empty"} : msg_queue.peek();
+    // if (new_message != last_message) {
+    //     document.getElementById("listenerOutput").innerHTML += new_message.data + "\n";
+    //     last_message = new_message;
+    // }
+    // listener.postMessage(new_message.data);
         // count++;
     // }
         // return new_message;
     // }
-    listener.onmessage = function(event) {
-        console.log("I WAS CALLED");
-        if (!msg_queue.isEmpty) {
-            console.log("QUE IS NOT EMPTY " + msg_queue.length);
-            new_message = msg_queue.dequeue();
-            console.log("DEQUE: " + new_message.data);
-        } else {
-            new_message = {"data": "data: all empty"};
-        }
-        // new_message = (msg_queue.isEmpty()) ? {"data": "data: empty"} : msg_queue.peek();
-        if (new_message != last_message) {
-            document.getElementById("listenerOutput").innerHTML += new_message.data + "\n";
-            last_message = new_message;
-        }
-        self.postMessage("data: onmessage from main");
-    }
+    // listener.onmessage = function(event) {
+    //     console.log("I WAS CALLED");
+    //     if (!msg_queue.isEmpty) {
+    //         console.log("QUE IS NOT EMPTY " + msg_queue.length);
+    //         new_message = msg_queue.dequeue();
+    //         console.log("DEQUE: " + new_message.data);
+    //     } else {
+    //         new_message = {"data": "data: all empty"};
+    //     }
+    //     // new_message = (msg_queue.isEmpty()) ? {"data": "data: empty"} : msg_queue.peek();
+    //     if (new_message != last_message) {
+    //         document.getElementById("listenerOutput").innerHTML += new_message.data + "\n";
+    //         last_message = new_message;
+    //     }
+    //     self.postMessage("data: onmessage from main");
+    // }
 
     // listener.postMessage(new_message);
 }
@@ -113,7 +119,8 @@ function startTalker() {
     })
 
     publisher.onmessage = function(event) {
-        msg_queue.enqueue(event);
+        // msg_queue.enqueue(event);
+        msg_queue = event.data;
         document.getElementById("talkerOutput").innerHTML += event.data;
     }
 }
