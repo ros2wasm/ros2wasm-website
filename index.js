@@ -27,14 +27,13 @@ class Queue {
 }
   
 // let msg_queue = new Queue();
-let msg_queue = {"data": "data: I'm an empty message"};
+let last_message = {"data": "data: I'm an empty message"};
+let new_message;
 
 
 let listener;
 
 function startListener() {
-
-    let new_message;
 
     document.getElementById("listenerOutput").innerHTML = "Initializing subscriber...\n";
 
@@ -47,51 +46,26 @@ function startListener() {
     })
 
     listener.onmessage = function(e) {
-        const message = e.data;
-        new_message = message;
+        let message = e.data;
         console.log(`[FROM LISTENER]: ${message}`);
     }
 
     listener.postMessage("data: from main with no love");
 
+    let count = 0;
+    while (count < 10) {
+        if (new_message != last_message) {
+            listener.postMessage(new_message);
+            last_message = new_message;
+        } else {
+            console.log("[FROM] SAME MESSAGE");
+        }
+        count ++;
+    }
 
-    // let que_lenght = msg_queue.length;
-    // console.log("QUELENGHT: " + que_lenght);
-    // if (!msg_queue.isEmpty) {
-    //     console.log("QUE IS NOT EMPTY " + msg_queue.length);
-    //     new_message = msg_queue.dequeue();
-    //     console.log("DEQUE: " + new_message.data);
-    // } else {
-    //     new_message = {"data": "data: all empty"};
-    // }
-    // // new_message = (msg_queue.isEmpty()) ? {"data": "data: empty"} : msg_queue.peek();
-    // if (new_message != last_message) {
-    //     document.getElementById("listenerOutput").innerHTML += new_message.data + "\n";
-    //     last_message = new_message;
-    // }
-    // listener.postMessage(new_message.data);
-        // count++;
-    // }
-        // return new_message;
-    // }
-    // listener.onmessage = function(event) {
-    //     console.log("I WAS CALLED");
-    //     if (!msg_queue.isEmpty) {
-    //         console.log("QUE IS NOT EMPTY " + msg_queue.length);
-    //         new_message = msg_queue.dequeue();
-    //         console.log("DEQUE: " + new_message.data);
-    //     } else {
-    //         new_message = {"data": "data: all empty"};
-    //     }
-    //     // new_message = (msg_queue.isEmpty()) ? {"data": "data: empty"} : msg_queue.peek();
-    //     if (new_message != last_message) {
-    //         document.getElementById("listenerOutput").innerHTML += new_message.data + "\n";
-    //         last_message = new_message;
-    //     }
-    //     self.postMessage("data: onmessage from main");
-    // }
+    listener.postMessage("data: listener done")
 
-    // listener.postMessage(new_message);
+
 }
 
 function stopListener() {
@@ -114,14 +88,22 @@ function startTalker() {
         publisher = new Worker("pubsub/talker.js");
     }
 
-    publisher.addEventListener('message', function(e) {
-        let data = e.data;
-    })
+    // publisher.addEventListener('message', function(e) {
+    //     let data = e.data;
+    //     new_message = e.data;
+    //     document.getElementById("talkerOutput").innerHTML += e.data;
+    //     console.log(`[FROM PUB] ${new_message}`);
+    //     listener.postMessage(new_message);
+    //     console.log("[FROM PUB] results???");
+    // })
 
     publisher.onmessage = function(event) {
         // msg_queue.enqueue(event);
-        msg_queue = event.data;
+        new_message = event.data;
         document.getElementById("talkerOutput").innerHTML += event.data;
+        console.log(`[FROM PUB] ${new_message}`);
+        listener.postMessage(new_message);
+        console.log("[FROM PUB] results???");
     }
 }
 

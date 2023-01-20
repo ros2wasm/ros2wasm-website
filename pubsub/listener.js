@@ -24,23 +24,21 @@ Module["js_talker"] = function js_talker(message)
 };
 
 let last_message = "data: No data yet";
-let new_message;
+let new_message = "data: empty";
 
 onmessage = function(e) {
-  const message = e.data;
-  new_message = message;
-  console.log(`[FROM MAIN]: ${message}`);
+  new_message = e.data;
+  console.log(`[FROM MAIN]: ${new_message}`);
 }
 
 Module["js_listener"] = function js_listener()
 {
     console.log(" [JS] I'm listening...");
 
-    postMessage("data: from worker with less love");
+    
+    last_message = new_message;
 
-
-    // console.log("MESSAGE: " + js_message.data);
-    return "data: FAKE MESSAGE";
+    return last_message;
 };
 
 // See https://caniuse.com/mdn-javascript_builtins_object_assign
