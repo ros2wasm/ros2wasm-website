@@ -15,12 +15,19 @@
 // can continue to use Module afterwards as well.
 var Module = typeof Module != 'undefined' ? Module : {};
 
+self.onconnect = function(e) {
+  let port = e.ports[0];
+  port.postMessage("SENT FROM TALKER");
+}
+
+
 Module["js_talker"] = function js_talker(message)
 {
-    if (message.startsWith("data:")) {
-      self.postMessage(message + "\n");
-    }
-    return 0;
+
+  if (message.startsWith("data:")) {
+    self.postMessage(message + "\n");
+  }
+  return 0;
 };
 
 Module["js_listener"] = function js_listener()

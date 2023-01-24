@@ -1,3 +1,10 @@
+// MESSAGE QUEUE
+
+let queue = new SharedWorker("queue.js");
+queue.port.start();
+
+
+
 // SUBSCRIBER
 
 let listener;
@@ -33,6 +40,16 @@ function startTalker() {
 
     if (typeof(publisher) == "undefined") {
         publisher = new Worker("pubsub/talker.js");
+    }
+
+
+    // publisher.port.postMessage({queuePort: queue.port}, [queue.port]);
+    // worker.addEventListener('message', function(e) {
+    //     let data = e.data;
+    // })
+
+    publisher.onmessage = function(event) {
+        document.getElementById("talkerOutput").innerHTML += event.data;
     }
 
 }

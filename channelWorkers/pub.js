@@ -16,7 +16,7 @@ self.onmessage = function( event ) {
             break;
 
         // Forward messages to queue
-        case "forward":
+        case "publish":
             // Forward messages to queue
             queuePort.postMessage( event.data.message );
             break;

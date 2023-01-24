@@ -27,3 +27,14 @@ class Queue {
 }
   
 let msg_queue = new Queue();
+
+
+onconnect = function (event) {
+
+    const port = event.ports[0];
+
+    port.onmessage = function (e) {
+        let message = e.data;
+        console.log("[QUEUE] Received: " + message + "END");
+    }
+}

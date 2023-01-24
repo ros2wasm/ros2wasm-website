@@ -1,7 +1,8 @@
 let channel_pub = new MessageChannel();
-// let channel_sub = new MessageChannel();
+let channel_sub = new MessageChannel();
 let pub = new Worker("pub.js");
 let queue = new Worker("queue.js");
+let sub = new Worker("sub.js");
 
 // Setup the connection: Port 1 is for pub
 pub.postMessage({
@@ -10,23 +11,76 @@ pub.postMessage({
 
 // Setup the connection: Port 2 is for queue
 queue.postMessage({
-    command : "connect",
+    command : "connectPub",
 },[ channel_pub.port2 ]);
 
-pub.postMessage({
-    command: "forward",
-    message: "a little pub message"
-});
+// Setup the connection: Port 1 is for queue
+queue.postMessage({
+    command : "connectSub",
+},[ channel_sub.port1 ]);
+
+// Setup the connection: Port 2 is for sub
+sub.postMessage({
+    command : "connect",
+},[ channel_sub.port2 ]);
+
+// Receive messages from queue for printing output
+queue.onmessage = function(event) {
+    switch( event.data.from )
+    {
+        case "pub":
+            document.getElementById("talkerOutput").innerHTML += event.data.message;
+            break;
+        case "sub":
+            document.getElementById("listenerOutput").innerHTML += event.data.message;
+        default:
+            console.log("Weird message");
+    }
+}
+
+
+// pub.postMessage({
+//     command: "publish",
+//     message: "a little pub message"
+// });
 
 
 let counter = 0;
-let publish = setInterval( function() {
+// let publish = setInterval( function() {
+//     pub.postMessage({
+//         command: "publish",
+//         message: "more pub messages " + counter
+//     });
+//     counter++;
+//     if (counter === 5) {
+//         clearInterval(publish);
+//     }
+// }, 500);
+
+// let counter = 0;
+// let subscribe = setInterval( function() {
+//     sub.postMessage({
+//         command: "subscribe",
+//         message: "SUBliminal messages " + counter
+//     });
+//     counter++;
+//     if (counter === 5) {
+//         clearInterval(subscribe);
+//     }
+// }, 500);
+
+let full_loop = setInterval( function() {
     pub.postMessage({
-        command: "forward",
+        command: "publish",
         message: "more pub messages " + counter
     });
+
+    sub.postMessage({
+        command: "subscribe",
+        message: "give me something " + counter
+    })
     counter++;
     if (counter === 10) {
-        clearInterval(publish);
+        clearInterval(full_loop);
     }
 }, 500);
