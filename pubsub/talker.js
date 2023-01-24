@@ -15,17 +15,41 @@
 // can continue to use Module afterwards as well.
 var Module = typeof Module != 'undefined' ? Module : {};
 
-self.onconnect = function(e) {
-  let port = e.ports[0];
-  port.postMessage("SENT FROM TALKER");
-}
+let queuePort;
+let onMessageFromQueue = function( event ){
+    console.log("[PUB] Received: " + event.data + ":END");
+
+    //To send something back to worker 2
+    // queuePort.postMessage("[W1] I got your message");
+};
+
+self.onmessage = function( event ) {
+    switch( event.data.command )
+    {
+        // Setup connection to queue
+        case "connect":
+            queuePort = event.ports[0];
+            queuePort.onmessage = onMessageFromQueue;
+            break;
+
+        // Forward messages to queue
+        case "publish":
+            // Forward messages to queue
+            queuePort.postMessage( event.data.message );
+            break;
+
+        // Handle other messages from main
+        default:
+            console.log( event.data );
+    }
+};
 
 
 Module["js_talker"] = function js_talker(message)
 {
 
   if (message.startsWith("data:")) {
-    self.postMessage(message + "\n");
+    queuePort.postMessage(message + "\n");
   }
   return 0;
 };

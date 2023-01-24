@@ -5,11 +5,12 @@ class Queue {
         this.tail = 0;
     }
     enqueue(element) {
-        console.log("QUEUE: " + element.data);
+        console.log("QUEUEing: " + element);
         this.elements[this.tail] = element;
         this.tail++;
     }
     dequeue() {
+        console.log("deQUEUED");
         const item = this.elements[this.head];
         delete this.elements[this.head];
         this.head++;
@@ -28,13 +29,54 @@ class Queue {
   
 let msg_queue = new Queue();
 
+let pubPort;
+let onMessageFromPub = function(event) {
+    console.log("[QUEUE] Received from pub: " + event.data);
+    msg_queue.enqueue(event.data);
 
-onconnect = function (event) {
+    // To send something back to main
+    self.postMessage({
+        from: "pub",
+        message: event.data
+    })
+    // subPort.postMessage("data: [W2] I got your message\n");
+};
 
-    const port = event.ports[0];
+let subPort;
+let onMessageFromSub = function(event) {
+    console.log("[QUEUE] Received from sub: " + event.data);
 
-    port.onmessage = function (e) {
-        let message = e.data;
-        console.log("[QUEUE] Received: " + message + "END");
-    }
+    let message = (msg_queue.isEmpty) ? "empty queue" : msg_queue.dequeue();
+
+    // Send something back to sub
+    subPort.postMessage(message);
+
+    console.log("[QUEUE] Message sent to sub");
+
+    // Send something back to main
+    self.postMessage({
+        from: "sub",
+        message: message + "\n"
+    })
 }
+
+self.onmessage = function( event ) {
+    switch( event.data.command )
+    {
+        // Setup connection to pub
+        case "connectPub":
+            pubPort = event.ports[0];
+            pubPort.onmessage = onMessageFromPub;
+            break;
+
+        case "connectSub":
+            subPort = event.ports[0];
+            subPort.onmessage = onMessageFromSub;
+            break;
+
+        // handle other messages from main
+        default:
+            console.log( "is this weird?" + event.data );
+    }
+};
+

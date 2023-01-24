@@ -12,11 +12,11 @@ body {
 button {
     color: #B9D6F2;
     background: #0353A4;
-    font-size: 18px;
+    font-size: 12px;
     font-weight: bold;
     width: 100px;
     height: 40px;
-    margin: 0px 30px 0px 30px;
+    margin: 0px 20px 0px 20px;
     border-radius: 5px;
     border-width: 0px;
 }

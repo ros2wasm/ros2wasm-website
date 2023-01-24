@@ -1,9 +1,9 @@
-let queue;
+let queuePort;
 let onMessageFromQueue = function(event) {
     console.log("[SUB] Received from queue: " + event.data + ":END");
 
     //To send something back to worker 1
-    // queue.postMessage("[W2] I got your message\n");
+    // queuePort.postMessage("[W2] I got your message\n");
 };
 
 self.onmessage = function(event) {
@@ -11,14 +11,14 @@ self.onmessage = function(event) {
     {
         // Setup connection to worker 1
         case "connect":
-            queue = event.ports[0];
-            queue.onmessage = onMessageFromQueue;
+            queuePort = event.ports[0];
+            queuePort.onmessage = onMessageFromQueue;
             break;
 
         // Forward messages to worker 1
         case "subscribe":
             // Forward messages to worker 1
-            queue.postMessage( event.data.message );
+            queuePort.postMessage( event.data.message );
             break;
 
         //handle other messages from main

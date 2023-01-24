@@ -15,18 +15,60 @@
 // can continue to use Module afterwards as well.
 var Module = typeof Module != 'undefined' ? Module : {};
 
+let lastMessage = "data: empty message";
+let queuePort;
+let onMessageFromQueue = function(event) {
+    console.log("[SUB] Received from queue: " + event.data + ":END");
+
+    // Store message
+    lastMessage = event.data;
+    //To send something back to worker 1
+    // queuePort.postMessage("[W2] I got your message\n");
+};
+
+self.onmessage = function(event) {
+    switch( event.data.command )
+    {
+        // Setup connection to queue
+        case "connect":
+            queuePort = event.ports[0];
+            queuePort.onmessage = onMessageFromQueue;
+            break;
+
+        // Forward messages to queue
+        case "subscribe":
+            // Forward messages to queue
+            queuePort.postMessage( event.data.message );
+            break;
+
+        //handle other messages from main
+        default:
+            console.log( event.data );
+    }
+};
+
+
+
 Module["js_talker"] = function js_talker(message)
 {
-    if (message.startsWith("data:")) {
-      self.postMessage(message + "\n");
-    }
     return 0;
 };
 
+// function sleep(ms) {
+//   return new Promise(resolve => setTimeout(resolve, ms));
+// }
+
+// function updateMessage() {
+//   let new_message = lastMessage;
+//   for
+// }
+queuePort.postMessage("Give me a message");
+
 Module["js_listener"] = function js_listener()
 {
-    let js_message = "data: FAKE JS MESSAGE";
-    return js_message;
+    queuePort.postMessage("Give me a message");
+
+    return lastMessage;
 };
 
 // See https://caniuse.com/mdn-javascript_builtins_object_assign
