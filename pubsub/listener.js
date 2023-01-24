@@ -17,28 +17,44 @@ var Module = typeof Module != 'undefined' ? Module : {};
 
 Module["js_talker"] = function js_talker(message)
 {
-    if (message.startsWith("data:")) {
-      self.postMessage(message + "\n");
-    }
-    return 0;
+  if (message.startsWith("data:")) {
+    self.postMessage(message + "\n");
+  }
+  return 0;
 };
 
 let last_message = "data: No data yet";
 let new_message = "data: empty";
 
-onmessage = function(e) {
-  new_message = e.data;
-  console.log(`[FROM MAIN]: ${new_message}`);
-}
+// function sleep(ms) {
+//   return new Promise(resolve => setTimeout(resolve, ms));
+// }
+
+// onmessage = function(e) {
+//   new_message = e.data;
+//   console.log(`[FROM MAIN]: ${new_message}`);
+// }
+
+self.addEventListener('message', function(e) {
+  const {port} = e.data;
+  port.onmessage = function (e) {
+    console.log("FROM OTHER WORKER:" + e.data + "END");
+    new_message = e.data;
+  }
+})
 
 Module["js_listener"] = function js_listener()
 {
-    console.log(" [JS] I'm listening...");
+  console.log("  [JS] I'm listening SOME NOISE");
+  // await sleep(100);
 
-    
-    last_message = new_message;
+  // if (last_message != new_message) {
+  //   return new_message;
+  // }
+  
+  last_message = new_message;
 
-    return last_message;
+  return "data: no new message";
 };
 
 // See https://caniuse.com/mdn-javascript_builtins_object_assign
