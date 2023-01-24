@@ -39,36 +39,7 @@ queue.onmessage = function(event) {
 }
 
 
-// pub.postMessage({
-//     command: "publish",
-//     message: "a little pub message"
-// });
-
-
 let counter = 0;
-// let publish = setInterval( function() {
-//     pub.postMessage({
-//         command: "publish",
-//         message: "more pub messages " + counter
-//     });
-//     counter++;
-//     if (counter === 5) {
-//         clearInterval(publish);
-//     }
-// }, 500);
-
-// let counter = 0;
-// let subscribe = setInterval( function() {
-//     sub.postMessage({
-//         command: "subscribe",
-//         message: "SUBliminal messages " + counter
-//     });
-//     counter++;
-//     if (counter === 5) {
-//         clearInterval(subscribe);
-//     }
-// }, 500);
-
 let full_loop = setInterval( function() {
     pub.postMessage({
         command: "publish",

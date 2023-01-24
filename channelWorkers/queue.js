@@ -72,20 +72,7 @@ self.onmessage = function( event ) {
             subPort.onmessage = onMessageFromSub;
             break;
 
-        // case "publish":
-        //     console.log("HEEEERE");
-        //     // Forward messages to pub
-        //     pubPort.postMessage( event.data.message );
-
-        //     // Send message to main for printing
-            
-        //     break;
-
-        // case "subscribe":
-        //     console.log("OR HEEERE");
-        //     subPort.postMessage( event.data.message );
-
-        //handle other messages from main
+        // handle other messages from main
         default:
             console.log( event.data );
     }
