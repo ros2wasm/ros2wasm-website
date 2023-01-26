@@ -9,12 +9,21 @@ body {
     height: 60px;
 }
 
+.box {
+    justify-content: center;
+    align-items: center;
+    display: flex;
+    padding: 30px;
+    margin: 5px;
+    width: 40%;
+}
+
 button {
     color: #B9D6F2;
     background: #0353A4;
-    font-size: 12px;
+    font-size: 16px;
     font-weight: bold;
-    width: 100px;
+    width: 150px;
     height: 40px;
     margin: 0px 20px 0px 20px;
     border-radius: 5px;
@@ -25,7 +34,7 @@ textarea {
     width: 40%;
     height: 400px;
     margin: 10px;
-    margin-top: 400px;
+    margin-top: 420px;
     border-width: 3px;
     border-radius: 5px;
     border-color: #35012C;
