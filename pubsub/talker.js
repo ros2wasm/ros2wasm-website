@@ -21,7 +21,7 @@ function sleep(ms) {
 
 let queuePort;
 let onMessageFromQueue = function( event ){
-    console.log("[PUB] Received: " + event.data + ":END");
+    console.log("[JS_PUB] Received: " + event.data + ":END");
 
     //To send something back to worker 2
     // queuePort.postMessage("[W1] I got your message");
@@ -55,13 +55,14 @@ Module["js_talker"] = function js_talker(message)
   if (message.startsWith("data:")) {
     queuePort.postMessage(message + "\n");
   }
+  
   return 0;
 };
 
 Module["js_listener"] = async function js_listener()
 {
-    let js_message = "data: FAKE JS MESSAGE";
-    await sleep(10);
+    let js_message = "";
+    await sleep(500);
     return js_message;
 };
 

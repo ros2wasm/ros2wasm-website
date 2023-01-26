@@ -14,8 +14,6 @@ queue.onmessage = function(event) {
             break;
         case "sub":
             document.getElementById("listenerOutput").innerHTML += event.data.message;
-        default:
-            console.log("Weird message: " + event.data);
     }
 }
 
@@ -27,7 +25,7 @@ function startTalker() {
     document.getElementById("talkerOutput").innerHTML = "Initializing publisher...\n";
 
     if (typeof(talker) == "undefined") {
-        talker = new Worker("test_pubsub/talker.js");
+        talker = new Worker("pubsub/talker.js");
     }
 
     // Setup the connection: Port 1 is for pub
@@ -61,7 +59,7 @@ function startListener() {
     document.getElementById("listenerOutput").innerHTML = "Initializing subscriber...\n";
 
     if (typeof(listener) == "undefined") {
-        listener = new Worker("test_pubsub/listener.js");
+        listener = new Worker("pubsub/listener.js");
     }
 
     // Setup the connection: Port 1 is for queue

@@ -19,10 +19,11 @@ function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-let lastMessage = "data: empty empty empty";
+let lastMessage = "data: empty";
+
 let queuePort;
 let onMessageFromQueue = function(event) {
-    console.log("[SUB] Received from queue: " + event.data + ":END");
+    console.log("[JS_SUB] Received data from queue.");
 
     // Store message
     lastMessage = event.data;
@@ -61,9 +62,8 @@ Module["js_talker"] = function js_talker(message)
 
 Module["js_listener"] = async function js_listener()
 {
-    queuePort.postMessage("Give me a message");
-    await sleep(10);
-
+    queuePort.postMessage("Retrieve new message.");
+    await sleep(500);
     return lastMessage;
 };
 

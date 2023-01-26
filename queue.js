@@ -5,12 +5,10 @@ class Queue {
         this.tail = 0;
     }
     enqueue(element) {
-        console.log("QUEUEing: " + element);
         this.elements[this.tail] = element;
         this.tail++;
     }
     dequeue() {
-        console.log("deQUEUED");
         const item = this.elements[this.head];
         delete this.elements[this.head];
         this.head++;
@@ -46,7 +44,7 @@ let subPort;
 let onMessageFromSub = function(event) {
     console.log("[QUEUE] Received from sub: " + event.data);
 
-    let message = (msg_queue.isEmpty) ? "data: empty queue" : msg_queue.dequeue();
+    let message = (msg_queue.isEmpty) ? "" : msg_queue.dequeue();
 
     // Send something back to sub
     subPort.postMessage(message);
@@ -54,10 +52,13 @@ let onMessageFromSub = function(event) {
     console.log("[QUEUE] Message sent to sub");
 
     // Send something back to main
-    self.postMessage({
-        from: "sub",
-        message: message + "\n"
-    })
+    if (!message.isEmpty) {
+        console.log("[QUEUE] Sending back to main");
+        self.postMessage({
+            from: "sub",
+            message: message
+        });
+    }
 }
 
 self.onmessage = function( event ) {
@@ -76,7 +77,7 @@ self.onmessage = function( event ) {
 
         // handle other messages from main
         default:
-            console.log( "is this weird?" + event.data );
+            console.log(event.data);
     }
 };
 
