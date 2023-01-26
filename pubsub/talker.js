@@ -15,6 +15,10 @@
 // can continue to use Module afterwards as well.
 var Module = typeof Module != 'undefined' ? Module : {};
 
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
 let queuePort;
 let onMessageFromQueue = function( event ){
     console.log("[PUB] Received: " + event.data + ":END");

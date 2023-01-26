@@ -46,7 +46,7 @@ let subPort;
 let onMessageFromSub = function(event) {
     console.log("[QUEUE] Received from sub: " + event.data);
 
-    let message = (msg_queue.isEmpty) ? "empty queue" : msg_queue.dequeue();
+    let message = (msg_queue.isEmpty) ? "data: empty queue" : msg_queue.dequeue();
 
     // Send something back to sub
     subPort.postMessage(message);

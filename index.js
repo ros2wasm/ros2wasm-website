@@ -27,7 +27,7 @@ function startTalker() {
     document.getElementById("talkerOutput").innerHTML = "Initializing publisher...\n";
 
     if (typeof(talker) == "undefined") {
-        talker = new Worker("pubsub/talker.js");
+        talker = new Worker("test_pubsub/talker.js");
     }
 
     // Setup the connection: Port 1 is for pub
@@ -61,7 +61,7 @@ function startListener() {
     document.getElementById("listenerOutput").innerHTML = "Initializing subscriber...\n";
 
     if (typeof(listener) == "undefined") {
-        listener = new Worker("pubsub/listener.js");
+        listener = new Worker("test_pubsub/listener.js");
     }
 
     // Setup the connection: Port 1 is for queue

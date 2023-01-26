@@ -15,7 +15,11 @@
 // can continue to use Module afterwards as well.
 var Module = typeof Module != 'undefined' ? Module : {};
 
-let lastMessage = "data: empty message";
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+let lastMessage = "data: empty empty empty";
 let queuePort;
 let onMessageFromQueue = function(event) {
     console.log("[SUB] Received from queue: " + event.data + ":END");
@@ -54,19 +58,11 @@ Module["js_talker"] = function js_talker(message)
     return 0;
 };
 
-// function sleep(ms) {
-//   return new Promise(resolve => setTimeout(resolve, ms));
-// }
 
-// function updateMessage() {
-//   let new_message = lastMessage;
-//   for
-// }
-queuePort.postMessage("Give me a message");
-
-Module["js_listener"] = function js_listener()
+Module["js_listener"] = async function js_listener()
 {
     queuePort.postMessage("Give me a message");
+    await sleep(10);
 
     return lastMessage;
 };
