@@ -1,7 +1,3 @@
-// Communication channels
-let channel_pub = new MessageChannel();
-let channel_sub = new MessageChannel();
-
 // MESSAGE QUEUE
 let queue = new Worker("queue.js");
 
@@ -19,10 +15,13 @@ queue.onmessage = function(event) {
 
 // PUBLISHER 
 let talker;
+let channel_pub;
 
 function startTalker() {
 
     document.getElementById("talkerOutput").innerHTML = "Initializing publisher...\n";
+
+    channel_pub = new MessageChannel();
 
     if (typeof(talker) == "undefined") {
         talker = new Worker("pubsub/talker.js");
@@ -43,6 +42,11 @@ function startTalker() {
 function stopTalker() {
     talker.terminate();
     talker = undefined;
+
+    channel_pub.port1.close();
+    channel_pub.port2.close();
+    channel_pub = undefined;
+
     document.getElementById("talkerOutput").innerHTML += "Publisher terminated.\n\n";
 }
 
@@ -53,10 +57,13 @@ function clearTalker() {
 
 // SUBSCRIBER
 let listener;
+let channel_sub;
 
 function startListener() {
 
     document.getElementById("listenerOutput").innerHTML = "Initializing subscriber...\n";
+
+    channel_sub = new MessageChannel();
 
     if (typeof(listener) == "undefined") {
         listener = new Worker("pubsub/listener.js");
@@ -77,15 +84,14 @@ function startListener() {
 function stopListener() {
     listener.terminate();
     listener = undefined;
+
+    channel_sub.port1.close();
+    channel_sub.port2.close();
+    channel_sub = undefined;
+    
     document.getElementById("listenerOutput").innerHTML += "Subscriber terminated.\n\n";
 }
 
 function clearListener() {
     document.getElementById("listenerOutput").innerHTML = "";
 }
-
-
-
-
-
-
