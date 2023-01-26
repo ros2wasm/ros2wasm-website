@@ -450,6 +450,18 @@ function isExportedByForceFilesystem(name) {
          name === 'removeRunDependency';
 }
 
+function missingGlobal(sym, msg) {
+  Object.defineProperty(globalThis, sym, {
+    configurable: true,
+    get: function() {
+      warnOnce('`' + sym + '` is not longer defined by emscripten. ' + msg);
+      return undefined;
+    }
+  });
+}
+
+missingGlobal('buffer', 'Please use HEAP8.buffer or wasmMemory.buffer');
+
 function missingLibrarySymbol(sym) {
   if (typeof globalThis !== 'undefined' && !Object.getOwnPropertyDescriptor(globalThis, sym)) {
     Object.defineProperty(globalThis, sym, {
@@ -735,8 +747,6 @@ function lengthBytesUTF8(str) {
 // Memory management
 
 var HEAP,
-/** @type {!ArrayBuffer} */
-  buffer,
 /** @type {!Int8Array} */
   HEAP8,
 /** @type {!Uint8Array} */
@@ -754,16 +764,16 @@ var HEAP,
 /** @type {!Float64Array} */
   HEAPF64;
 
-function updateGlobalBufferAndViews(buf) {
-  buffer = buf;
-  Module['HEAP8'] = HEAP8 = new Int8Array(buf);
-  Module['HEAP16'] = HEAP16 = new Int16Array(buf);
-  Module['HEAP32'] = HEAP32 = new Int32Array(buf);
-  Module['HEAPU8'] = HEAPU8 = new Uint8Array(buf);
-  Module['HEAPU16'] = HEAPU16 = new Uint16Array(buf);
-  Module['HEAPU32'] = HEAPU32 = new Uint32Array(buf);
-  Module['HEAPF32'] = HEAPF32 = new Float32Array(buf);
-  Module['HEAPF64'] = HEAPF64 = new Float64Array(buf);
+function updateMemoryViews() {
+  var b = wasmMemory.buffer;
+  Module['HEAP8'] = HEAP8 = new Int8Array(b);
+  Module['HEAP16'] = HEAP16 = new Int16Array(b);
+  Module['HEAP32'] = HEAP32 = new Int32Array(b);
+  Module['HEAPU8'] = HEAPU8 = new Uint8Array(b);
+  Module['HEAPU16'] = HEAPU16 = new Uint16Array(b);
+  Module['HEAPU32'] = HEAPU32 = new Uint32Array(b);
+  Module['HEAPF32'] = HEAPF32 = new Float32Array(b);
+  Module['HEAPF64'] = HEAPF64 = new Float64Array(b);
 }
 
 var STACK_SIZE = 16777216;
@@ -890,6 +900,8 @@ function preMain() {
 }
 
 function exitRuntime() {
+  // ASYNCIFY cannot be used once the runtime starts shutting down.
+  Asyncify.state = Asyncify.State.Disabled;
   checkStackCookie();
   ___funcs_on_exit(); // Native atexit() functions
   callRuntimeCallbacks(__ATEXIT__);
@@ -1044,6 +1056,10 @@ function abort(what) {
   ABORT = true;
   EXITSTATUS = 1;
 
+  if (what.indexOf('RuntimeError: unreachable') >= 0) {
+    what += '. "unreachable" may be due to ASYNCIFY_STACK_SIZE not being large enough (try increasing it)';
+  }
+
   // Use a wasm runtime error, because a JS error might be seen as a foreign
   // exception, which means we'd run destructors on it. We need the error to
   // simply make the program stop.
@@ -1057,8 +1073,13 @@ function abort(what) {
   // defintion for WebAssembly.RuntimeError claims it takes no arguments even
   // though it can.
   // TODO(https://github.com/google/closure-compiler/pull/3913): Remove if/when upstream closure gets fixed.
-  // See above, in the meantime, we resort to wasm code for trapping.
-  ___trap();
+  /** @suppress {checkTypes} */
+  var e = new WebAssembly.RuntimeError(what);
+
+  // Throw the error whether or not MODULARIZE is set because abort is used
+  // in code paths apart from instantiation where an exception is expected
+  // to be thrown when abort is called.
+  throw e;
 }
 
 // {{MEM_INITIALIZER}}
@@ -1171,6 +1192,8 @@ function createWasm() {
   function receiveInstance(instance, module) {
     var exports = instance.exports;
 
+    exports = Asyncify.instrumentWasmExports(exports);
+
     Module['asm'] = exports;
 
     wasmMemory = Module['asm']['memory'];
@@ -1179,7 +1202,7 @@ function createWasm() {
     // mode.
     // TODO(sbc): Read INITIAL_MEMORY out of the wasm file in post-link mode.
     //assert(wasmMemory.buffer.byteLength === 67108864);
-    updateGlobalBufferAndViews(wasmMemory.buffer);
+    updateMemoryViews();
 
     wasmTable = Module['asm']['__indirect_function_table'];
     assert(wasmTable, "table not found in wasm exports");
@@ -1267,6 +1290,7 @@ function createWasm() {
   if (Module['instantiateWasm']) {
     try {
       var exports = Module['instantiateWasm'](info, receiveInstance);
+      exports = Asyncify.instrumentWasmExports(exports);
       return exports;
     } catch(e) {
       err('Module.instantiateWasm callback failed with error: ' + e);
@@ -1306,25 +1330,6 @@ var ASM_CONSTS = {
       }
     }
 
-  
-  function getCppExceptionTag() {
-      // In static linking, tags are defined within the wasm module and are
-      // exported, whereas in dynamic linking, tags are defined in library.js in
-      // JS code and wasm modules import them.
-      return Module['asm']['__cpp_exception'];
-    }
-  
-  function getCppExceptionThrownObjectFromWebAssemblyException(ex) {
-      // In Wasm EH, the value extracted from WebAssembly.Exception is a pointer
-      // to the unwind header. Convert it to the actual thrown value.
-      var unwind_header = ex.getArg(getCppExceptionTag(), 0);
-      return ___thrown_object_from_unwind_exception(unwind_header);
-    }
-  function decrementExceptionRefcount(ex) {
-      var ptr = getCppExceptionThrownObjectFromWebAssemblyException(ex);
-      ___cxa_decrement_exception_refcount(ptr);
-    }
-
   function withStackSave(f) {
       var stack = stackSave();
       var ret = f();
@@ -1362,32 +1367,6 @@ var ASM_CONSTS = {
     }
 
   
-  
-  
-  function getExceptionMessageCommon(ptr) {
-      return withStackSave(function() {
-        var type_addr_addr = stackAlloc(4);
-        var message_addr_addr = stackAlloc(4);
-        ___get_exception_message(ptr, type_addr_addr, message_addr_addr);
-        var type_addr = HEAPU32[((type_addr_addr)>>2)];
-        var message_addr = HEAPU32[((message_addr_addr)>>2)];
-        var type = UTF8ToString(type_addr);
-        _free(type_addr);
-        var message;
-        if (message_addr) {
-          message = UTF8ToString(message_addr);
-          _free(message_addr);
-        }
-        return [type, message];
-      });
-    }
-  function getExceptionMessage(ex) {
-      var ptr = getCppExceptionThrownObjectFromWebAssemblyException(ex);
-      return getExceptionMessageCommon(ptr);
-    }
-  Module["getExceptionMessage"] = getExceptionMessage;
-
-  
     /**
      * @param {number} ptr
      * @param {string} type
@@ -1406,12 +1385,6 @@ var ASM_CONSTS = {
         default: abort('invalid type for getValue: ' + type);
       }
       return null;
-    }
-
-  
-  function incrementExceptionRefcount(ex) {
-      var ptr = getCppExceptionThrownObjectFromWebAssemblyException(ex);
-      ___cxa_increment_exception_refcount(ptr);
     }
 
   function ptrToString(ptr) {
@@ -1484,6 +1457,336 @@ var ASM_CONSTS = {
   function ___assert_fail(condition, filename, line, func) {
       abort('Assertion failed: ' + UTF8ToString(condition) + ', at: ' + [filename ? UTF8ToString(filename) : 'unknown filename', line, func ? UTF8ToString(func) : 'unknown function']);
     }
+
+  var exceptionCaught =  [];
+  
+  function exception_addRef(info) {
+      info.add_ref();
+    }
+  
+  var uncaughtExceptionCount = 0;
+  function ___cxa_begin_catch(ptr) {
+      var info = new ExceptionInfo(ptr);
+      if (!info.get_caught()) {
+        info.set_caught(true);
+        uncaughtExceptionCount--;
+      }
+      info.set_rethrown(false);
+      exceptionCaught.push(info);
+      exception_addRef(info);
+      return info.get_exception_ptr();
+    }
+
+  
+  function ___cxa_current_primary_exception() {
+      if (!exceptionCaught.length) {
+        return 0;
+      }
+      var info = exceptionCaught[exceptionCaught.length - 1];
+      exception_addRef(info);
+      return info.excPtr;
+    }
+
+  function exception_decRef(info) {
+      // A rethrown exception can reach refcount 0; it must not be discarded
+      // Its next handler will clear the rethrown flag and addRef it, prior to
+      // final decRef and destruction here
+      if (info.release_ref() && !info.get_rethrown()) {
+        var destructor = info.get_destructor();
+        if (destructor) {
+          // In Wasm, destructors return 'this' as in ARM
+          ((a1) => dynCall_ii.apply(null, [destructor, a1]))(info.excPtr);
+        }
+        ___cxa_free_exception(info.excPtr);
+      }
+    }
+  
+  /** @constructor */
+  function ExceptionInfo(excPtr) {
+      this.excPtr = excPtr;
+      this.ptr = excPtr - 24;
+  
+      this.set_type = function(type) {
+        HEAPU32[(((this.ptr)+(4))>>2)] = type;
+      };
+  
+      this.get_type = function() {
+        return HEAPU32[(((this.ptr)+(4))>>2)];
+      };
+  
+      this.set_destructor = function(destructor) {
+        HEAPU32[(((this.ptr)+(8))>>2)] = destructor;
+      };
+  
+      this.get_destructor = function() {
+        return HEAPU32[(((this.ptr)+(8))>>2)];
+      };
+  
+      this.set_refcount = function(refcount) {
+        HEAP32[((this.ptr)>>2)] = refcount;
+      };
+  
+      this.set_caught = function (caught) {
+        caught = caught ? 1 : 0;
+        HEAP8[(((this.ptr)+(12))>>0)] = caught;
+      };
+  
+      this.get_caught = function () {
+        return HEAP8[(((this.ptr)+(12))>>0)] != 0;
+      };
+  
+      this.set_rethrown = function (rethrown) {
+        rethrown = rethrown ? 1 : 0;
+        HEAP8[(((this.ptr)+(13))>>0)] = rethrown;
+      };
+  
+      this.get_rethrown = function () {
+        return HEAP8[(((this.ptr)+(13))>>0)] != 0;
+      };
+  
+      // Initialize native structure fields. Should be called once after allocated.
+      this.init = function(type, destructor) {
+        this.set_adjusted_ptr(0);
+        this.set_type(type);
+        this.set_destructor(destructor);
+        this.set_refcount(0);
+        this.set_caught(false);
+        this.set_rethrown(false);
+      }
+  
+      this.add_ref = function() {
+        var value = HEAP32[((this.ptr)>>2)];
+        HEAP32[((this.ptr)>>2)] = value + 1;
+      };
+  
+      // Returns true if last reference released.
+      this.release_ref = function() {
+        var prev = HEAP32[((this.ptr)>>2)];
+        HEAP32[((this.ptr)>>2)] = prev - 1;
+        assert(prev > 0);
+        return prev === 1;
+      };
+  
+      this.set_adjusted_ptr = function(adjustedPtr) {
+        HEAPU32[(((this.ptr)+(16))>>2)] = adjustedPtr;
+      };
+  
+      this.get_adjusted_ptr = function() {
+        return HEAPU32[(((this.ptr)+(16))>>2)];
+      };
+  
+      // Get pointer which is expected to be received by catch clause in C++ code. It may be adjusted
+      // when the pointer is casted to some of the exception object base classes (e.g. when virtual
+      // inheritance is used). When a pointer is thrown this method should return the thrown pointer
+      // itself.
+      this.get_exception_ptr = function() {
+        // Work around a fastcomp bug, this code is still included for some reason in a build without
+        // exceptions support.
+        var isPointer = ___cxa_is_pointer_type(this.get_type());
+        if (isPointer) {
+          return HEAPU32[((this.excPtr)>>2)];
+        }
+        var adjusted = this.get_adjusted_ptr();
+        if (adjusted !== 0) return adjusted;
+        return this.excPtr;
+      };
+    }
+  function ___cxa_decrement_exception_refcount(ptr) {
+      if (!ptr) return;
+      exception_decRef(new ExceptionInfo(ptr));
+    }
+
+  
+  var exceptionLast = 0;
+  
+  function ___cxa_end_catch() {
+      // Clear state flag.
+      _setThrew(0);
+      assert(exceptionCaught.length > 0);
+      // Call destructor if one is registered then clear it.
+      var info = exceptionCaught.pop();
+  
+      exception_decRef(info);
+      exceptionLast = 0; // XXX in decRef?
+    }
+
+  
+  
+  function ___resumeException(ptr) {
+      if (!exceptionLast) { exceptionLast = ptr; }
+      throw ptr;
+    }
+  
+  
+  function ___cxa_find_matching_catch_2() {
+      var thrown = exceptionLast;
+      if (!thrown) {
+        // just pass through the null ptr
+        setTempRet0(0);
+        return 0;
+      }
+      var info = new ExceptionInfo(thrown);
+      info.set_adjusted_ptr(thrown);
+      var thrownType = info.get_type();
+      if (!thrownType) {
+        // just pass through the thrown ptr
+        setTempRet0(0);
+        return thrown;
+      }
+  
+      // can_catch receives a **, add indirection
+      // The different catch blocks are denoted by different types.
+      // Due to inheritance, those types may not precisely match the
+      // type of the thrown object. Find one which matches, and
+      // return the type of the catch block which should be called.
+      for (var i = 0; i < arguments.length; i++) {
+        var caughtType = arguments[i];
+        if (caughtType === 0 || caughtType === thrownType) {
+          // Catch all clause matched or exactly the same type is caught
+          break;
+        }
+        var adjusted_ptr_addr = info.ptr + 16;
+        if (___cxa_can_catch(caughtType, thrownType, adjusted_ptr_addr)) {
+          setTempRet0(caughtType);
+          return thrown;
+        }
+      }
+      setTempRet0(thrownType);
+      return thrown;
+    }
+
+  
+  
+  
+  
+  function ___cxa_find_matching_catch_3() {
+      var thrown = exceptionLast;
+      if (!thrown) {
+        // just pass through the null ptr
+        setTempRet0(0);
+        return 0;
+      }
+      var info = new ExceptionInfo(thrown);
+      info.set_adjusted_ptr(thrown);
+      var thrownType = info.get_type();
+      if (!thrownType) {
+        // just pass through the thrown ptr
+        setTempRet0(0);
+        return thrown;
+      }
+  
+      // can_catch receives a **, add indirection
+      // The different catch blocks are denoted by different types.
+      // Due to inheritance, those types may not precisely match the
+      // type of the thrown object. Find one which matches, and
+      // return the type of the catch block which should be called.
+      for (var i = 0; i < arguments.length; i++) {
+        var caughtType = arguments[i];
+        if (caughtType === 0 || caughtType === thrownType) {
+          // Catch all clause matched or exactly the same type is caught
+          break;
+        }
+        var adjusted_ptr_addr = info.ptr + 16;
+        if (___cxa_can_catch(caughtType, thrownType, adjusted_ptr_addr)) {
+          setTempRet0(caughtType);
+          return thrown;
+        }
+      }
+      setTempRet0(thrownType);
+      return thrown;
+    }
+
+  
+  
+  
+  
+  function ___cxa_find_matching_catch_4() {
+      var thrown = exceptionLast;
+      if (!thrown) {
+        // just pass through the null ptr
+        setTempRet0(0);
+        return 0;
+      }
+      var info = new ExceptionInfo(thrown);
+      info.set_adjusted_ptr(thrown);
+      var thrownType = info.get_type();
+      if (!thrownType) {
+        // just pass through the thrown ptr
+        setTempRet0(0);
+        return thrown;
+      }
+  
+      // can_catch receives a **, add indirection
+      // The different catch blocks are denoted by different types.
+      // Due to inheritance, those types may not precisely match the
+      // type of the thrown object. Find one which matches, and
+      // return the type of the catch block which should be called.
+      for (var i = 0; i < arguments.length; i++) {
+        var caughtType = arguments[i];
+        if (caughtType === 0 || caughtType === thrownType) {
+          // Catch all clause matched or exactly the same type is caught
+          break;
+        }
+        var adjusted_ptr_addr = info.ptr + 16;
+        if (___cxa_can_catch(caughtType, thrownType, adjusted_ptr_addr)) {
+          setTempRet0(caughtType);
+          return thrown;
+        }
+      }
+      setTempRet0(thrownType);
+      return thrown;
+    }
+
+  
+  function ___cxa_increment_exception_refcount(ptr) {
+      if (!ptr) return;
+      exception_addRef(new ExceptionInfo(ptr));
+    }
+
+  
+  
+  function ___cxa_rethrow() {
+      var info = exceptionCaught.pop();
+      if (!info) {
+        abort('no exception to throw');
+      }
+      var ptr = info.excPtr;
+      if (!info.get_rethrown()) {
+        // Only pop if the corresponding push was through rethrow_primary_exception
+        exceptionCaught.push(info);
+        info.set_rethrown(true);
+        info.set_caught(false);
+        uncaughtExceptionCount++;
+      }
+      exceptionLast = ptr;
+      throw ptr;
+    }
+
+  
+  
+  function ___cxa_rethrow_primary_exception(ptr) {
+      if (!ptr) return;
+      var info = new ExceptionInfo(ptr);
+      exceptionCaught.push(info);
+      info.set_rethrown(true);
+      ___cxa_rethrow();
+    }
+
+  
+  
+  function ___cxa_throw(ptr, type, destructor) {
+      var info = new ExceptionInfo(ptr);
+      // Initialize ExceptionInfo content after it was allocated in __cxa_allocate_exception.
+      info.init(type, destructor);
+      exceptionLast = ptr;
+      uncaughtExceptionCount++;
+      throw ptr;
+    }
+
+  function ___cxa_uncaught_exceptions() {
+      return uncaughtExceptionCount;
+    }
+
 
   var PATH = {isAbs:(path) => path.charAt(0) === '/',splitPath:(filename) => {
         var splitPathRe = /^(\/?|)([\s\S]*?)((?:\.{1,2}|[^\/]+?|)(\.[^.\/]*|))(?:[\/]*)$/;
@@ -2067,9 +2370,9 @@ var ASM_CONSTS = {
           var allocated;
           var contents = stream.node.contents;
           // Only make a new copy when MAP_PRIVATE is specified.
-          if (!(flags & 2) && contents.buffer === buffer) {
-            // We can't emulate MAP_SHARED when the file is not backed by the buffer
-            // we're mapping to (e.g. the HEAP buffer).
+          if (!(flags & 2) && contents.buffer === HEAP8.buffer) {
+            // We can't emulate MAP_SHARED when the file is not backed by the
+            // buffer we're mapping to (e.g. the HEAP buffer).
             allocated = false;
             ptr = contents.byteOffset;
           } else {
@@ -3982,25 +4285,6 @@ var ASM_CONSTS = {
   }
   }
 
-  
-  function ___throw_exception_with_stack_trace(ex) {
-      var e = new WebAssembly.Exception(getCppExceptionTag(), [ex], {traceStack: true});
-      e.message = getExceptionMessage(e);
-      // The generated stack trace will be in the form of:
-      //
-      // Error
-      //     at ___throw_exception_with_stack_trace(test.js:1139:13)
-      //     at __cxa_throw (wasm://wasm/009a7c9a:wasm-function[1551]:0x24367)
-      //     ...
-      //
-      // Remove this JS function name, which is in the second line, from the stack
-      // trace.
-      var arr = e.stack.split('\n');
-      arr.splice(1,1);
-      e.stack = arr.join('\n');
-      throw e;
-    }
-
   function __embind_register_bigint(primitiveType, name, size, minRange, maxRange) {}
 
   function getShiftFromSize(size) {
@@ -4418,7 +4702,7 @@ var ASM_CONSTS = {
         var heap = HEAPU32;
         var size = heap[handle]; // in elements
         var data = heap[handle + 1]; // byte offset into emscripten heap
-        return new TA(buffer, data, size);
+        return new TA(heap.buffer, data, size);
       }
   
       name = readLatin1String(name);
@@ -4776,6 +5060,343 @@ var ASM_CONSTS = {
       return returnType['toWireType'](destructors, handle);
     }
 
+  
+  function runAndAbortIfError(func) {
+      try {
+        return func();
+      } catch (e) {
+        abort(e);
+      }
+    }
+  
+  function handleException(e) {
+      // Certain exception types we do not treat as errors since they are used for
+      // internal control flow.
+      // 1. ExitStatus, which is thrown by exit()
+      // 2. "unwind", which is thrown by emscripten_unwind_to_js_event_loop() and others
+      //    that wish to return to JS event loop.
+      if (e instanceof ExitStatus || e == 'unwind') {
+        return EXITSTATUS;
+      }
+      checkStackCookie();
+      if (e instanceof WebAssembly.RuntimeError) {
+        if (_emscripten_stack_get_current() <= 0) {
+          err('Stack overflow detected.  You can try increasing -sSTACK_SIZE (currently set to ' + STACK_SIZE + ')');
+        }
+      }
+      quit_(1, e);
+    }
+  
+  
+  function _proc_exit(code) {
+      EXITSTATUS = code;
+      if (!keepRuntimeAlive()) {
+        if (Module['onExit']) Module['onExit'](code);
+        ABORT = true;
+      }
+      quit_(code, new ExitStatus(code));
+    }
+  /** @param {boolean|number=} implicit */
+  function exitJS(status, implicit) {
+      EXITSTATUS = status;
+  
+      if (!keepRuntimeAlive()) {
+        exitRuntime();
+      }
+  
+      // if exit() was called explicitly, warn the user if the runtime isn't actually being shut down
+      if (keepRuntimeAlive() && !implicit) {
+        var msg = 'program exited (with status: ' + status + '), but keepRuntimeAlive() is set (counter=' + runtimeKeepaliveCounter + ') due to an async operation, so halting execution but not exiting the runtime or preventing further async execution (you can use emscripten_force_exit, if you want to force a true shutdown)';
+        err(msg);
+      }
+  
+      _proc_exit(status);
+    }
+  var _exit = exitJS;
+  
+  function maybeExit() {
+      if (!keepRuntimeAlive()) {
+        try {
+          _exit(EXITSTATUS);
+        } catch (e) {
+          handleException(e);
+        }
+      }
+    }
+  function callUserCallback(func) {
+      if (runtimeExited || ABORT) {
+        err('user callback triggered after runtime exited or application aborted.  Ignoring.');
+        return;
+      }
+      try {
+        func();
+          maybeExit();
+      } catch (e) {
+        handleException(e);
+      }
+    }
+  
+  function sigToWasmTypes(sig) {
+      var typeNames = {
+        'i': 'i32',
+        // i64 values will be split into two i32s.
+        'j': 'i32',
+        'f': 'f32',
+        'd': 'f64',
+        'p': 'i32',
+      };
+      var type = {
+        parameters: [],
+        results: sig[0] == 'v' ? [] : [typeNames[sig[0]]]
+      };
+      for (var i = 1; i < sig.length; ++i) {
+        assert(sig[i] in typeNames, 'invalid signature char: ' + sig[i]);
+        type.parameters.push(typeNames[sig[i]]);
+        if (sig[i] === 'j') {
+          type.parameters.push('i32');
+        }
+      }
+      return type;
+    }
+  
+  function runtimeKeepalivePush() {
+      runtimeKeepaliveCounter += 1;
+    }
+  
+  function runtimeKeepalivePop() {
+      assert(runtimeKeepaliveCounter > 0);
+      runtimeKeepaliveCounter -= 1;
+    }
+  
+  
+  var Asyncify = {instrumentWasmImports:function(imports) {
+        var ASYNCIFY_IMPORTS = ["env.invoke_*","env.emscripten_sleep","env.emscripten_wget","env.emscripten_wget_data","env.emscripten_idb_load","env.emscripten_idb_store","env.emscripten_idb_delete","env.emscripten_idb_exists","env.emscripten_idb_load_blob","env.emscripten_idb_store_blob","env.SDL_Delay","env.emscripten_scan_registers","env.emscripten_lazy_load_code","env.emscripten_fiber_swap","wasi_snapshot_preview1.fd_sync","env.__wasi_fd_sync","env._emval_await","env._dlopen_js","env.__asyncjs__*"].map((x) => x.split('.')[1]);
+        for (var x in imports) {
+          (function(x) {
+            var original = imports[x];
+            var sig = original.sig;
+            if (typeof original == 'function') {
+              var isAsyncifyImport = ASYNCIFY_IMPORTS.indexOf(x) >= 0 ||
+                                     x.startsWith('__asyncjs__');
+              imports[x] = function() {
+                var originalAsyncifyState = Asyncify.state;
+                try {
+                  return original.apply(null, arguments);
+                } finally {
+                  // Only asyncify-declared imports are allowed to change the
+                  // state.
+                  // Changing the state from normal to disabled is allowed (in any
+                  // function) as that is what shutdown does (and we don't have an
+                  // explicit list of shutdown imports).
+                  var changedToDisabled =
+                        originalAsyncifyState === Asyncify.State.Normal &&
+                        Asyncify.state        === Asyncify.State.Disabled;
+                  // invoke_* functions are allowed to change the state if we do
+                  // not ignore indirect calls.
+                  var ignoredInvoke = x.startsWith('invoke_') &&
+                                      true;
+                  if (Asyncify.state !== originalAsyncifyState &&
+                      !isAsyncifyImport &&
+                      !changedToDisabled &&
+                      !ignoredInvoke) {
+                    throw new Error('import ' + x + ' was not in ASYNCIFY_IMPORTS, but changed the state');
+                  }
+                }
+              };
+            }
+          })(x);
+        }
+      },instrumentWasmExports:function(exports) {
+        var ret = {};
+        for (var x in exports) {
+          (function(x) {
+            var original = exports[x];
+            if (typeof original == 'function') {
+              ret[x] = function() {
+                Asyncify.exportCallStack.push(x);
+                try {
+                  return original.apply(null, arguments);
+                } finally {
+                  if (!ABORT) {
+                    var y = Asyncify.exportCallStack.pop();
+                    assert(y === x);
+                    Asyncify.maybeStopUnwind();
+                  }
+                }
+              };
+            } else {
+              ret[x] = original;
+            }
+          })(x);
+        }
+        return ret;
+      },State:{Normal:0,Unwinding:1,Rewinding:2,Disabled:3},state:0,StackSize:24576,currData:null,handleSleepReturnValue:0,exportCallStack:[],callStackNameToId:{},callStackIdToName:{},callStackId:0,asyncPromiseHandlers:null,sleepCallbacks:[],getCallStackId:function(funcName) {
+        var id = Asyncify.callStackNameToId[funcName];
+        if (id === undefined) {
+          id = Asyncify.callStackId++;
+          Asyncify.callStackNameToId[funcName] = id;
+          Asyncify.callStackIdToName[id] = funcName;
+        }
+        return id;
+      },maybeStopUnwind:function() {
+        if (Asyncify.currData &&
+            Asyncify.state === Asyncify.State.Unwinding &&
+            Asyncify.exportCallStack.length === 0) {
+          // We just finished unwinding.
+          // Be sure to set the state before calling any other functions to avoid
+          // possible infinite recursion here (For example in debug pthread builds
+          // the dbg() function itself can call back into WebAssembly to get the
+          // current pthread_self() pointer).
+          Asyncify.state = Asyncify.State.Normal;
+          runtimeKeepalivePush();
+          // Keep the runtime alive so that a re-wind can be done later.
+          runAndAbortIfError(_asyncify_stop_unwind);
+          if (typeof Fibers != 'undefined') {
+            Fibers.trampoline();
+          }
+        }
+      },whenDone:function() {
+        assert(Asyncify.currData, 'Tried to wait for an async operation when none is in progress.');
+        assert(!Asyncify.asyncPromiseHandlers, 'Cannot have multiple async operations in flight at once');
+        return new Promise((resolve, reject) => {
+          Asyncify.asyncPromiseHandlers = {
+            resolve: resolve,
+            reject: reject
+          };
+        });
+      },allocateData:function() {
+        // An asyncify data structure has three fields:
+        //  0  current stack pos
+        //  4  max stack pos
+        //  8  id of function at bottom of the call stack (callStackIdToName[id] == name of js function)
+        //
+        // The Asyncify ABI only interprets the first two fields, the rest is for the runtime.
+        // We also embed a stack in the same memory region here, right next to the structure.
+        // This struct is also defined as asyncify_data_t in emscripten/fiber.h
+        var ptr = _malloc(12 + Asyncify.StackSize);
+        Asyncify.setDataHeader(ptr, ptr + 12, Asyncify.StackSize);
+        Asyncify.setDataRewindFunc(ptr);
+        return ptr;
+      },setDataHeader:function(ptr, stack, stackSize) {
+        HEAP32[((ptr)>>2)] = stack;
+        HEAP32[(((ptr)+(4))>>2)] = stack + stackSize;
+      },setDataRewindFunc:function(ptr) {
+        var bottomOfCallStack = Asyncify.exportCallStack[0];
+        var rewindId = Asyncify.getCallStackId(bottomOfCallStack);
+        HEAP32[(((ptr)+(8))>>2)] = rewindId;
+      },getDataRewindFunc:function(ptr) {
+        var id = HEAP32[(((ptr)+(8))>>2)];
+        var name = Asyncify.callStackIdToName[id];
+        var func = Module['asm'][name];
+        return func;
+      },doRewind:function(ptr) {
+        var start = Asyncify.getDataRewindFunc(ptr);
+        // Once we have rewound and the stack we no longer need to artificially
+        // keep the runtime alive.
+        runtimeKeepalivePop();
+        return start();
+      },handleSleep:function(startAsync) {
+        assert(Asyncify.state !== Asyncify.State.Disabled, 'Asyncify cannot be done during or after the runtime exits');
+        if (ABORT) return;
+        if (Asyncify.state === Asyncify.State.Normal) {
+          // Prepare to sleep. Call startAsync, and see what happens:
+          // if the code decided to call our callback synchronously,
+          // then no async operation was in fact begun, and we don't
+          // need to do anything.
+          var reachedCallback = false;
+          var reachedAfterCallback = false;
+          startAsync((handleSleepReturnValue) => {
+            assert(!handleSleepReturnValue || typeof handleSleepReturnValue == 'number' || typeof handleSleepReturnValue == 'boolean'); // old emterpretify API supported other stuff
+            if (ABORT) return;
+            Asyncify.handleSleepReturnValue = handleSleepReturnValue || 0;
+            reachedCallback = true;
+            if (!reachedAfterCallback) {
+              // We are happening synchronously, so no need for async.
+              return;
+            }
+            // This async operation did not happen synchronously, so we did
+            // unwind. In that case there can be no compiled code on the stack,
+            // as it might break later operations (we can rewind ok now, but if
+            // we unwind again, we would unwind through the extra compiled code
+            // too).
+            assert(!Asyncify.exportCallStack.length, 'Waking up (starting to rewind) must be done from JS, without compiled code on the stack.');
+            Asyncify.state = Asyncify.State.Rewinding;
+            runAndAbortIfError(() => _asyncify_start_rewind(Asyncify.currData));
+            if (typeof Browser != 'undefined' && Browser.mainLoop.func) {
+              Browser.mainLoop.resume();
+            }
+            var asyncWasmReturnValue, isError = false;
+            try {
+              asyncWasmReturnValue = Asyncify.doRewind(Asyncify.currData);
+            } catch (err) {
+              asyncWasmReturnValue = err;
+              isError = true;
+            }
+            // Track whether the return value was handled by any promise handlers.
+            var handled = false;
+            if (!Asyncify.currData) {
+              // All asynchronous execution has finished.
+              // `asyncWasmReturnValue` now contains the final
+              // return value of the exported async WASM function.
+              //
+              // Note: `asyncWasmReturnValue` is distinct from
+              // `Asyncify.handleSleepReturnValue`.
+              // `Asyncify.handleSleepReturnValue` contains the return
+              // value of the last C function to have executed
+              // `Asyncify.handleSleep()`, where as `asyncWasmReturnValue`
+              // contains the return value of the exported WASM function
+              // that may have called C functions that
+              // call `Asyncify.handleSleep()`.
+              var asyncPromiseHandlers = Asyncify.asyncPromiseHandlers;
+              if (asyncPromiseHandlers) {
+                Asyncify.asyncPromiseHandlers = null;
+                (isError ? asyncPromiseHandlers.reject : asyncPromiseHandlers.resolve)(asyncWasmReturnValue);
+                handled = true;
+              }
+            }
+            if (isError && !handled) {
+              // If there was an error and it was not handled by now, we have no choice but to
+              // rethrow that error into the global scope where it can be caught only by
+              // `onerror` or `onunhandledpromiserejection`.
+              throw asyncWasmReturnValue;
+            }
+          });
+          reachedAfterCallback = true;
+          if (!reachedCallback) {
+            // A true async operation was begun; start a sleep.
+            Asyncify.state = Asyncify.State.Unwinding;
+            // TODO: reuse, don't alloc/free every sleep
+            Asyncify.currData = Asyncify.allocateData();
+            if (typeof Browser != 'undefined' && Browser.mainLoop.func) {
+              Browser.mainLoop.pause();
+            }
+            runAndAbortIfError(() => _asyncify_start_unwind(Asyncify.currData));
+          }
+        } else if (Asyncify.state === Asyncify.State.Rewinding) {
+          // Stop a resume.
+          Asyncify.state = Asyncify.State.Normal;
+          runAndAbortIfError(_asyncify_stop_rewind);
+          _free(Asyncify.currData);
+          Asyncify.currData = null;
+          // Call all sleep callbacks now that the sleep-resume is all done.
+          Asyncify.sleepCallbacks.forEach((func) => callUserCallback(func));
+        } else {
+          abort('invalid state: ' + Asyncify.state);
+        }
+        return Asyncify.handleSleepReturnValue;
+      },handleAsync:function(startAsync) {
+        return Asyncify.handleSleep((wakeUp) => {
+          // TODO: add error handling as a second param when handleSleep implements it.
+          startAsync().then(wakeUp);
+        });
+      }};
+  function __emval_await(promise) {
+      return Asyncify.handleAsync(() => {
+        promise = Emval.toValue(promise);
+        return promise.then(Emval.toHandle);
+      });
+    }
+
   function emval_lookupTypes(argCount, argTypes) {
       var a = new Array(argCount);
       for (var i = 0; i < argCount; ++i) {
@@ -4960,13 +5581,14 @@ var ASM_CONSTS = {
     }
   
   function emscripten_realloc_buffer(size) {
+      var b = wasmMemory.buffer;
       try {
         // round size grow request up to wasm page size (fixed 64KB per spec)
-        wasmMemory.grow((size - buffer.byteLength + 65535) >>> 16); // .grow() takes a delta compared to the previous size
-        updateGlobalBufferAndViews(wasmMemory.buffer);
+        wasmMemory.grow((size - b.byteLength + 65535) >>> 16); // .grow() takes a delta compared to the previous size
+        updateMemoryViews();
         return 1 /*success*/;
       } catch(e) {
-        err('emscripten_realloc_buffer: Attempted to grow heap from ' + buffer.byteLength  + ' bytes to ' + size + ' bytes, but got error: ' + e);
+        err('emscripten_realloc_buffer: Attempted to grow heap from ' + b.byteLength  + ' bytes to ' + size + ' bytes, but got error: ' + e);
       }
       // implicit 0 return to save code size (caller will cast "undefined" into 0
       // anyhow)
@@ -5094,32 +5716,6 @@ var ASM_CONSTS = {
       return 0;
     }
 
-  
-  function _proc_exit(code) {
-      EXITSTATUS = code;
-      if (!keepRuntimeAlive()) {
-        if (Module['onExit']) Module['onExit'](code);
-        ABORT = true;
-      }
-      quit_(code, new ExitStatus(code));
-    }
-  /** @param {boolean|number=} implicit */
-  function exitJS(status, implicit) {
-      EXITSTATUS = status;
-  
-      if (!keepRuntimeAlive()) {
-        exitRuntime();
-      }
-  
-      // if exit() was called explicitly, warn the user if the runtime isn't actually being shut down
-      if (keepRuntimeAlive() && !implicit) {
-        var msg = 'program exited (with status: ' + status + '), but keepRuntimeAlive() is set (counter=' + runtimeKeepaliveCounter + ') due to an async operation, so halting execution but not exiting the runtime or preventing further async execution (you can use emscripten_force_exit, if you want to force a true shutdown)';
-        err(msg);
-      }
-  
-      _proc_exit(status);
-    }
-  var _exit = exitJS;
 
   function _fd_close(fd) {
   try {
@@ -5238,6 +5834,10 @@ var ASM_CONSTS = {
     return e.errno;
   }
   }
+
+  function _llvm_eh_typeid_for(type) {
+      return type;
+    }
 
   
   function __arraySum(array, index) {
@@ -5576,23 +6176,6 @@ var ASM_CONSTS = {
     }
 
 
-  function handleException(e) {
-      // Certain exception types we do not treat as errors since they are used for
-      // internal control flow.
-      // 1. ExitStatus, which is thrown by exit()
-      // 2. "unwind", which is thrown by emscripten_unwind_to_js_event_loop() and others
-      //    that wish to return to JS event loop.
-      if (e instanceof ExitStatus || e == 'unwind') {
-        return EXITSTATUS;
-      }
-      checkStackCookie();
-      if (e instanceof WebAssembly.RuntimeError) {
-        if (_emscripten_stack_get_current() <= 0) {
-          err('Stack overflow detected.  You can try increasing -sSTACK_SIZE (currently set to ' + STACK_SIZE + ')');
-        }
-      }
-      quit_(1, e);
-    }
 
   function allocateUTF8OnStack(str) {
       var size = lengthBytesUTF8(str) + 1;
@@ -5600,6 +6183,19 @@ var ASM_CONSTS = {
       stringToUTF8Array(str, HEAP8, ret, size);
       return ret;
     }
+
+  var wasmTableMirror = [];
+  
+  function getWasmTableEntry(funcPtr) {
+      var func = wasmTableMirror[funcPtr];
+      if (!func) {
+        if (funcPtr >= wasmTableMirror.length) wasmTableMirror.length = funcPtr + 1;
+        wasmTableMirror[funcPtr] = func = wasmTable.get(funcPtr);
+      }
+      assert(wasmTable.get(funcPtr) == func, "JavaScript-side Wasm function table mirror is out of date!");
+      return func;
+    }
+
 
   var FSNode = /** @constructor */ function(parent, name, mode, rdev) {
     if (!parent) {
@@ -5781,6 +6377,19 @@ function checkIncomingModuleAPI() {
 }
 var asmLibraryArg = {
   "__assert_fail": ___assert_fail,
+  "__cxa_begin_catch": ___cxa_begin_catch,
+  "__cxa_current_primary_exception": ___cxa_current_primary_exception,
+  "__cxa_decrement_exception_refcount": ___cxa_decrement_exception_refcount,
+  "__cxa_end_catch": ___cxa_end_catch,
+  "__cxa_find_matching_catch_2": ___cxa_find_matching_catch_2,
+  "__cxa_find_matching_catch_3": ___cxa_find_matching_catch_3,
+  "__cxa_find_matching_catch_4": ___cxa_find_matching_catch_4,
+  "__cxa_increment_exception_refcount": ___cxa_increment_exception_refcount,
+  "__cxa_rethrow": ___cxa_rethrow,
+  "__cxa_rethrow_primary_exception": ___cxa_rethrow_primary_exception,
+  "__cxa_throw": ___cxa_throw,
+  "__cxa_uncaught_exceptions": ___cxa_uncaught_exceptions,
+  "__resumeException": ___resumeException,
   "__syscall_faccessat": ___syscall_faccessat,
   "__syscall_fcntl64": ___syscall_fcntl64,
   "__syscall_fstat64": ___syscall_fstat64,
@@ -5790,7 +6399,6 @@ var asmLibraryArg = {
   "__syscall_newfstatat": ___syscall_newfstatat,
   "__syscall_openat": ___syscall_openat,
   "__syscall_stat64": ___syscall_stat64,
-  "__throw_exception_with_stack_trace": ___throw_exception_with_stack_trace,
   "_embind_register_bigint": __embind_register_bigint,
   "_embind_register_bool": __embind_register_bool,
   "_embind_register_emval": __embind_register_emval,
@@ -5803,6 +6411,7 @@ var asmLibraryArg = {
   "_emscripten_get_now_is_monotonic": __emscripten_get_now_is_monotonic,
   "_emscripten_get_progname": __emscripten_get_progname,
   "_emval_as": __emval_as,
+  "_emval_await": __emval_await,
   "_emval_call": __emval_call,
   "_emval_decref": __emval_decref,
   "_emval_get_module_property": __emval_get_module_property,
@@ -5823,14 +6432,67 @@ var asmLibraryArg = {
   "fd_read": _fd_read,
   "fd_seek": _fd_seek,
   "fd_write": _fd_write,
+  "invoke_diii": invoke_diii,
+  "invoke_fiii": invoke_fiii,
+  "invoke_i": invoke_i,
+  "invoke_id": invoke_id,
+  "invoke_ii": invoke_ii,
+  "invoke_iii": invoke_iii,
+  "invoke_iiii": invoke_iiii,
+  "invoke_iiiii": invoke_iiiii,
+  "invoke_iiiiid": invoke_iiiiid,
+  "invoke_iiiiii": invoke_iiiiii,
+  "invoke_iiiiiii": invoke_iiiiiii,
+  "invoke_iiiiiiii": invoke_iiiiiiii,
+  "invoke_iiiiiiiiii": invoke_iiiiiiiiii,
+  "invoke_iiiiiiiiiii": invoke_iiiiiiiiiii,
+  "invoke_iiiiiiiiiiii": invoke_iiiiiiiiiiii,
+  "invoke_iiiiiiiiiiiii": invoke_iiiiiiiiiiiii,
+  "invoke_iiiiij": invoke_iiiiij,
+  "invoke_iiiiijj": invoke_iiiiijj,
+  "invoke_iiiji": invoke_iiiji,
+  "invoke_iiijii": invoke_iiijii,
+  "invoke_iiji": invoke_iiji,
+  "invoke_iijii": invoke_iijii,
+  "invoke_j": invoke_j,
+  "invoke_ji": invoke_ji,
+  "invoke_jii": invoke_jii,
+  "invoke_jiiii": invoke_jiiii,
+  "invoke_v": invoke_v,
+  "invoke_vi": invoke_vi,
+  "invoke_vid": invoke_vid,
+  "invoke_vii": invoke_vii,
+  "invoke_viid": invoke_viid,
+  "invoke_viii": invoke_viii,
+  "invoke_viiii": invoke_viiii,
+  "invoke_viiiii": invoke_viiiii,
+  "invoke_viiiiii": invoke_viiiiii,
+  "invoke_viiiiiii": invoke_viiiiiii,
+  "invoke_viiiiiiii": invoke_viiiiiiii,
+  "invoke_viiiiiiiiii": invoke_viiiiiiiiii,
+  "invoke_viiiiiiiiiiiiiii": invoke_viiiiiiiiiiiiiii,
+  "invoke_viij": invoke_viij,
+  "invoke_viijii": invoke_viijii,
+  "invoke_vij": invoke_vij,
+  "invoke_viji": invoke_viji,
+  "invoke_vijii": invoke_vijii,
+  "invoke_vijiiii": invoke_vijiiii,
+  "llvm_eh_typeid_for": _llvm_eh_typeid_for,
   "strftime_l": _strftime_l
 };
+Asyncify.instrumentWasmImports(asmLibraryArg);
 var asm = createWasm();
 /** @type {function(...*):?} */
 var ___wasm_call_ctors = Module["___wasm_call_ctors"] = createExportWrapper("__wasm_call_ctors");
 
 /** @type {function(...*):?} */
 var _main = Module["_main"] = createExportWrapper("__main_argc_argv");
+
+/** @type {function(...*):?} */
+var getTempRet0 = Module["getTempRet0"] = createExportWrapper("getTempRet0");
+
+/** @type {function(...*):?} */
+var ___cxa_free_exception = Module["___cxa_free_exception"] = createExportWrapper("__cxa_free_exception");
 
 /** @type {function(...*):?} */
 var ___cxa_demangle = Module["___cxa_demangle"] = createExportWrapper("__cxa_demangle");
@@ -5860,13 +6522,19 @@ var ___funcs_on_exit = Module["___funcs_on_exit"] = createExportWrapper("__funcs
 var ___dl_seterr = Module["___dl_seterr"] = createExportWrapper("__dl_seterr");
 
 /** @type {function(...*):?} */
-var ___trap = Module["___trap"] = function() {
-  return (___trap = Module["___trap"] = Module["asm"]["__trap"]).apply(null, arguments);
-};
+var _setThrew = Module["_setThrew"] = createExportWrapper("setThrew");
+
+/** @type {function(...*):?} */
+var setTempRet0 = Module["setTempRet0"] = createExportWrapper("setTempRet0");
 
 /** @type {function(...*):?} */
 var _emscripten_stack_init = Module["_emscripten_stack_init"] = function() {
   return (_emscripten_stack_init = Module["_emscripten_stack_init"] = Module["asm"]["emscripten_stack_init"]).apply(null, arguments);
+};
+
+/** @type {function(...*):?} */
+var _emscripten_stack_set_limits = Module["_emscripten_stack_set_limits"] = function() {
+  return (_emscripten_stack_set_limits = Module["_emscripten_stack_set_limits"] = Module["asm"]["emscripten_stack_set_limits"]).apply(null, arguments);
 };
 
 /** @type {function(...*):?} */
@@ -5899,16 +6567,100 @@ var _emscripten_stack_get_current = Module["_emscripten_stack_get_current"] = fu
 };
 
 /** @type {function(...*):?} */
-var ___cxa_decrement_exception_refcount = Module["___cxa_decrement_exception_refcount"] = createExportWrapper("__cxa_decrement_exception_refcount");
+var ___cxa_can_catch = Module["___cxa_can_catch"] = createExportWrapper("__cxa_can_catch");
 
 /** @type {function(...*):?} */
-var ___cxa_increment_exception_refcount = Module["___cxa_increment_exception_refcount"] = createExportWrapper("__cxa_increment_exception_refcount");
+var ___cxa_is_pointer_type = Module["___cxa_is_pointer_type"] = createExportWrapper("__cxa_is_pointer_type");
 
 /** @type {function(...*):?} */
-var ___thrown_object_from_unwind_exception = Module["___thrown_object_from_unwind_exception"] = createExportWrapper("__thrown_object_from_unwind_exception");
+var dynCall_viiii = Module["dynCall_viiii"] = createExportWrapper("dynCall_viiii");
 
 /** @type {function(...*):?} */
-var ___get_exception_message = Module["___get_exception_message"] = createExportWrapper("__get_exception_message");
+var dynCall_vi = Module["dynCall_vi"] = createExportWrapper("dynCall_vi");
+
+/** @type {function(...*):?} */
+var dynCall_iii = Module["dynCall_iii"] = createExportWrapper("dynCall_iii");
+
+/** @type {function(...*):?} */
+var dynCall_ii = Module["dynCall_ii"] = createExportWrapper("dynCall_ii");
+
+/** @type {function(...*):?} */
+var dynCall_iiii = Module["dynCall_iiii"] = createExportWrapper("dynCall_iiii");
+
+/** @type {function(...*):?} */
+var dynCall_vii = Module["dynCall_vii"] = createExportWrapper("dynCall_vii");
+
+/** @type {function(...*):?} */
+var dynCall_viiiiiii = Module["dynCall_viiiiiii"] = createExportWrapper("dynCall_viiiiiii");
+
+/** @type {function(...*):?} */
+var dynCall_viiiii = Module["dynCall_viiiii"] = createExportWrapper("dynCall_viiiii");
+
+/** @type {function(...*):?} */
+var dynCall_viii = Module["dynCall_viii"] = createExportWrapper("dynCall_viii");
+
+/** @type {function(...*):?} */
+var dynCall_viiiiiiii = Module["dynCall_viiiiiiii"] = createExportWrapper("dynCall_viiiiiiii");
+
+/** @type {function(...*):?} */
+var dynCall_vij = Module["dynCall_vij"] = createExportWrapper("dynCall_vij");
+
+/** @type {function(...*):?} */
+var dynCall_viiiiii = Module["dynCall_viiiiii"] = createExportWrapper("dynCall_viiiiii");
+
+/** @type {function(...*):?} */
+var dynCall_ji = Module["dynCall_ji"] = createExportWrapper("dynCall_ji");
+
+/** @type {function(...*):?} */
+var dynCall_vijiiii = Module["dynCall_vijiiii"] = createExportWrapper("dynCall_vijiiii");
+
+/** @type {function(...*):?} */
+var dynCall_v = Module["dynCall_v"] = createExportWrapper("dynCall_v");
+
+/** @type {function(...*):?} */
+var dynCall_iiiiiii = Module["dynCall_iiiiiii"] = createExportWrapper("dynCall_iiiiiii");
+
+/** @type {function(...*):?} */
+var dynCall_iiiii = Module["dynCall_iiiii"] = createExportWrapper("dynCall_iiiii");
+
+/** @type {function(...*):?} */
+var dynCall_iiiiii = Module["dynCall_iiiiii"] = createExportWrapper("dynCall_iiiiii");
+
+/** @type {function(...*):?} */
+var dynCall_jii = Module["dynCall_jii"] = createExportWrapper("dynCall_jii");
+
+/** @type {function(...*):?} */
+var dynCall_viji = Module["dynCall_viji"] = createExportWrapper("dynCall_viji");
+
+/** @type {function(...*):?} */
+var dynCall_i = Module["dynCall_i"] = createExportWrapper("dynCall_i");
+
+/** @type {function(...*):?} */
+var dynCall_iiji = Module["dynCall_iiji"] = createExportWrapper("dynCall_iiji");
+
+/** @type {function(...*):?} */
+var dynCall_vid = Module["dynCall_vid"] = createExportWrapper("dynCall_vid");
+
+/** @type {function(...*):?} */
+var dynCall_viijii = Module["dynCall_viijii"] = createExportWrapper("dynCall_viijii");
+
+/** @type {function(...*):?} */
+var dynCall_vijii = Module["dynCall_vijii"] = createExportWrapper("dynCall_vijii");
+
+/** @type {function(...*):?} */
+var dynCall_iijii = Module["dynCall_iijii"] = createExportWrapper("dynCall_iijii");
+
+/** @type {function(...*):?} */
+var dynCall_iiijii = Module["dynCall_iiijii"] = createExportWrapper("dynCall_iiijii");
+
+/** @type {function(...*):?} */
+var dynCall_iiiji = Module["dynCall_iiiji"] = createExportWrapper("dynCall_iiiji");
+
+/** @type {function(...*):?} */
+var dynCall_iiiiiiiiii = Module["dynCall_iiiiiiiiii"] = createExportWrapper("dynCall_iiiiiiiiii");
+
+/** @type {function(...*):?} */
+var dynCall_iiiiiiii = Module["dynCall_iiiiiiii"] = createExportWrapper("dynCall_iiiiiiii");
 
 /** @type {function(...*):?} */
 var dynCall_viij = Module["dynCall_viij"] = createExportWrapper("dynCall_viij");
@@ -5917,26 +6669,569 @@ var dynCall_viij = Module["dynCall_viij"] = createExportWrapper("dynCall_viij");
 var dynCall_viiijii = Module["dynCall_viiijii"] = createExportWrapper("dynCall_viiijii");
 
 /** @type {function(...*):?} */
-var dynCall_vij = Module["dynCall_vij"] = createExportWrapper("dynCall_vij");
+var dynCall_viiij = Module["dynCall_viiij"] = createExportWrapper("dynCall_viiij");
 
 /** @type {function(...*):?} */
-var dynCall_viiij = Module["dynCall_viiij"] = createExportWrapper("dynCall_viiij");
+var dynCall_id = Module["dynCall_id"] = createExportWrapper("dynCall_id");
+
+/** @type {function(...*):?} */
+var dynCall_iiiiiiiii = Module["dynCall_iiiiiiiii"] = createExportWrapper("dynCall_iiiiiiiii");
 
 /** @type {function(...*):?} */
 var dynCall_jiji = Module["dynCall_jiji"] = createExportWrapper("dynCall_jiji");
 
 /** @type {function(...*):?} */
-var dynCall_viijii = Module["dynCall_viijii"] = createExportWrapper("dynCall_viijii");
+var dynCall_iidiiii = Module["dynCall_iidiiii"] = createExportWrapper("dynCall_iidiiii");
+
+/** @type {function(...*):?} */
+var dynCall_j = Module["dynCall_j"] = createExportWrapper("dynCall_j");
 
 /** @type {function(...*):?} */
 var dynCall_iiiiij = Module["dynCall_iiiiij"] = createExportWrapper("dynCall_iiiiij");
 
 /** @type {function(...*):?} */
+var dynCall_iiiiid = Module["dynCall_iiiiid"] = createExportWrapper("dynCall_iiiiid");
+
+/** @type {function(...*):?} */
 var dynCall_iiiiijj = Module["dynCall_iiiiijj"] = createExportWrapper("dynCall_iiiiijj");
+
+/** @type {function(...*):?} */
+var dynCall_iiiiiiiiiii = Module["dynCall_iiiiiiiiiii"] = createExportWrapper("dynCall_iiiiiiiiiii");
+
+/** @type {function(...*):?} */
+var dynCall_jiiii = Module["dynCall_jiiii"] = createExportWrapper("dynCall_jiiii");
+
+/** @type {function(...*):?} */
+var dynCall_iiiiiiiiiiiii = Module["dynCall_iiiiiiiiiiiii"] = createExportWrapper("dynCall_iiiiiiiiiiiii");
+
+/** @type {function(...*):?} */
+var dynCall_fiii = Module["dynCall_fiii"] = createExportWrapper("dynCall_fiii");
+
+/** @type {function(...*):?} */
+var dynCall_diii = Module["dynCall_diii"] = createExportWrapper("dynCall_diii");
+
+/** @type {function(...*):?} */
+var dynCall_iiiiiiiiiiii = Module["dynCall_iiiiiiiiiiii"] = createExportWrapper("dynCall_iiiiiiiiiiii");
+
+/** @type {function(...*):?} */
+var dynCall_viiiiiiiiii = Module["dynCall_viiiiiiiiii"] = createExportWrapper("dynCall_viiiiiiiiii");
+
+/** @type {function(...*):?} */
+var dynCall_viiiiiiiiiiiiiii = Module["dynCall_viiiiiiiiiiiiiii"] = createExportWrapper("dynCall_viiiiiiiiiiiiiii");
 
 /** @type {function(...*):?} */
 var dynCall_iiiiiijj = Module["dynCall_iiiiiijj"] = createExportWrapper("dynCall_iiiiiijj");
 
+/** @type {function(...*):?} */
+var dynCall_viid = Module["dynCall_viid"] = createExportWrapper("dynCall_viid");
+
+/** @type {function(...*):?} */
+var _asyncify_start_unwind = Module["_asyncify_start_unwind"] = createExportWrapper("asyncify_start_unwind");
+
+/** @type {function(...*):?} */
+var _asyncify_stop_unwind = Module["_asyncify_stop_unwind"] = createExportWrapper("asyncify_stop_unwind");
+
+/** @type {function(...*):?} */
+var _asyncify_start_rewind = Module["_asyncify_start_rewind"] = createExportWrapper("asyncify_start_rewind");
+
+/** @type {function(...*):?} */
+var _asyncify_stop_rewind = Module["_asyncify_stop_rewind"] = createExportWrapper("asyncify_stop_rewind");
+
+
+function invoke_viiii(index,a1,a2,a3,a4) {
+  var sp = stackSave();
+  try {
+    dynCall_viiii(index,a1,a2,a3,a4);
+  } catch(e) {
+    stackRestore(sp);
+    if (e !== e+0) throw e;
+    _setThrew(1, 0);
+  }
+}
+
+function invoke_vi(index,a1) {
+  var sp = stackSave();
+  try {
+    dynCall_vi(index,a1);
+  } catch(e) {
+    stackRestore(sp);
+    if (e !== e+0) throw e;
+    _setThrew(1, 0);
+  }
+}
+
+function invoke_iii(index,a1,a2) {
+  var sp = stackSave();
+  try {
+    return dynCall_iii(index,a1,a2);
+  } catch(e) {
+    stackRestore(sp);
+    if (e !== e+0) throw e;
+    _setThrew(1, 0);
+  }
+}
+
+function invoke_ii(index,a1) {
+  var sp = stackSave();
+  try {
+    return dynCall_ii(index,a1);
+  } catch(e) {
+    stackRestore(sp);
+    if (e !== e+0) throw e;
+    _setThrew(1, 0);
+  }
+}
+
+function invoke_iiii(index,a1,a2,a3) {
+  var sp = stackSave();
+  try {
+    return dynCall_iiii(index,a1,a2,a3);
+  } catch(e) {
+    stackRestore(sp);
+    if (e !== e+0) throw e;
+    _setThrew(1, 0);
+  }
+}
+
+function invoke_viiiiiii(index,a1,a2,a3,a4,a5,a6,a7) {
+  var sp = stackSave();
+  try {
+    dynCall_viiiiiii(index,a1,a2,a3,a4,a5,a6,a7);
+  } catch(e) {
+    stackRestore(sp);
+    if (e !== e+0) throw e;
+    _setThrew(1, 0);
+  }
+}
+
+function invoke_viii(index,a1,a2,a3) {
+  var sp = stackSave();
+  try {
+    dynCall_viii(index,a1,a2,a3);
+  } catch(e) {
+    stackRestore(sp);
+    if (e !== e+0) throw e;
+    _setThrew(1, 0);
+  }
+}
+
+function invoke_viiiii(index,a1,a2,a3,a4,a5) {
+  var sp = stackSave();
+  try {
+    dynCall_viiiii(index,a1,a2,a3,a4,a5);
+  } catch(e) {
+    stackRestore(sp);
+    if (e !== e+0) throw e;
+    _setThrew(1, 0);
+  }
+}
+
+function invoke_vii(index,a1,a2) {
+  var sp = stackSave();
+  try {
+    dynCall_vii(index,a1,a2);
+  } catch(e) {
+    stackRestore(sp);
+    if (e !== e+0) throw e;
+    _setThrew(1, 0);
+  }
+}
+
+function invoke_viiiiiiii(index,a1,a2,a3,a4,a5,a6,a7,a8) {
+  var sp = stackSave();
+  try {
+    dynCall_viiiiiiii(index,a1,a2,a3,a4,a5,a6,a7,a8);
+  } catch(e) {
+    stackRestore(sp);
+    if (e !== e+0) throw e;
+    _setThrew(1, 0);
+  }
+}
+
+function invoke_viiiiii(index,a1,a2,a3,a4,a5,a6) {
+  var sp = stackSave();
+  try {
+    dynCall_viiiiii(index,a1,a2,a3,a4,a5,a6);
+  } catch(e) {
+    stackRestore(sp);
+    if (e !== e+0) throw e;
+    _setThrew(1, 0);
+  }
+}
+
+function invoke_iiiiii(index,a1,a2,a3,a4,a5) {
+  var sp = stackSave();
+  try {
+    return dynCall_iiiiii(index,a1,a2,a3,a4,a5);
+  } catch(e) {
+    stackRestore(sp);
+    if (e !== e+0) throw e;
+    _setThrew(1, 0);
+  }
+}
+
+function invoke_v(index) {
+  var sp = stackSave();
+  try {
+    dynCall_v(index);
+  } catch(e) {
+    stackRestore(sp);
+    if (e !== e+0) throw e;
+    _setThrew(1, 0);
+  }
+}
+
+function invoke_iiiiiii(index,a1,a2,a3,a4,a5,a6) {
+  var sp = stackSave();
+  try {
+    return dynCall_iiiiiii(index,a1,a2,a3,a4,a5,a6);
+  } catch(e) {
+    stackRestore(sp);
+    if (e !== e+0) throw e;
+    _setThrew(1, 0);
+  }
+}
+
+function invoke_iiiii(index,a1,a2,a3,a4) {
+  var sp = stackSave();
+  try {
+    return dynCall_iiiii(index,a1,a2,a3,a4);
+  } catch(e) {
+    stackRestore(sp);
+    if (e !== e+0) throw e;
+    _setThrew(1, 0);
+  }
+}
+
+function invoke_i(index) {
+  var sp = stackSave();
+  try {
+    return dynCall_i(index);
+  } catch(e) {
+    stackRestore(sp);
+    if (e !== e+0) throw e;
+    _setThrew(1, 0);
+  }
+}
+
+function invoke_vid(index,a1,a2) {
+  var sp = stackSave();
+  try {
+    dynCall_vid(index,a1,a2);
+  } catch(e) {
+    stackRestore(sp);
+    if (e !== e+0) throw e;
+    _setThrew(1, 0);
+  }
+}
+
+function invoke_iiiiiiiiii(index,a1,a2,a3,a4,a5,a6,a7,a8,a9) {
+  var sp = stackSave();
+  try {
+    return dynCall_iiiiiiiiii(index,a1,a2,a3,a4,a5,a6,a7,a8,a9);
+  } catch(e) {
+    stackRestore(sp);
+    if (e !== e+0) throw e;
+    _setThrew(1, 0);
+  }
+}
+
+function invoke_iiiiiiii(index,a1,a2,a3,a4,a5,a6,a7) {
+  var sp = stackSave();
+  try {
+    return dynCall_iiiiiiii(index,a1,a2,a3,a4,a5,a6,a7);
+  } catch(e) {
+    stackRestore(sp);
+    if (e !== e+0) throw e;
+    _setThrew(1, 0);
+  }
+}
+
+function invoke_id(index,a1) {
+  var sp = stackSave();
+  try {
+    return dynCall_id(index,a1);
+  } catch(e) {
+    stackRestore(sp);
+    if (e !== e+0) throw e;
+    _setThrew(1, 0);
+  }
+}
+
+function invoke_iiiiid(index,a1,a2,a3,a4,a5) {
+  var sp = stackSave();
+  try {
+    return dynCall_iiiiid(index,a1,a2,a3,a4,a5);
+  } catch(e) {
+    stackRestore(sp);
+    if (e !== e+0) throw e;
+    _setThrew(1, 0);
+  }
+}
+
+function invoke_iiiiiiiiiii(index,a1,a2,a3,a4,a5,a6,a7,a8,a9,a10) {
+  var sp = stackSave();
+  try {
+    return dynCall_iiiiiiiiiii(index,a1,a2,a3,a4,a5,a6,a7,a8,a9,a10);
+  } catch(e) {
+    stackRestore(sp);
+    if (e !== e+0) throw e;
+    _setThrew(1, 0);
+  }
+}
+
+function invoke_iiiiiiiiiiiii(index,a1,a2,a3,a4,a5,a6,a7,a8,a9,a10,a11,a12) {
+  var sp = stackSave();
+  try {
+    return dynCall_iiiiiiiiiiiii(index,a1,a2,a3,a4,a5,a6,a7,a8,a9,a10,a11,a12);
+  } catch(e) {
+    stackRestore(sp);
+    if (e !== e+0) throw e;
+    _setThrew(1, 0);
+  }
+}
+
+function invoke_fiii(index,a1,a2,a3) {
+  var sp = stackSave();
+  try {
+    return dynCall_fiii(index,a1,a2,a3);
+  } catch(e) {
+    stackRestore(sp);
+    if (e !== e+0) throw e;
+    _setThrew(1, 0);
+  }
+}
+
+function invoke_diii(index,a1,a2,a3) {
+  var sp = stackSave();
+  try {
+    return dynCall_diii(index,a1,a2,a3);
+  } catch(e) {
+    stackRestore(sp);
+    if (e !== e+0) throw e;
+    _setThrew(1, 0);
+  }
+}
+
+function invoke_iiiiiiiiiiii(index,a1,a2,a3,a4,a5,a6,a7,a8,a9,a10,a11) {
+  var sp = stackSave();
+  try {
+    return dynCall_iiiiiiiiiiii(index,a1,a2,a3,a4,a5,a6,a7,a8,a9,a10,a11);
+  } catch(e) {
+    stackRestore(sp);
+    if (e !== e+0) throw e;
+    _setThrew(1, 0);
+  }
+}
+
+function invoke_viiiiiiiiii(index,a1,a2,a3,a4,a5,a6,a7,a8,a9,a10) {
+  var sp = stackSave();
+  try {
+    dynCall_viiiiiiiiii(index,a1,a2,a3,a4,a5,a6,a7,a8,a9,a10);
+  } catch(e) {
+    stackRestore(sp);
+    if (e !== e+0) throw e;
+    _setThrew(1, 0);
+  }
+}
+
+function invoke_viiiiiiiiiiiiiii(index,a1,a2,a3,a4,a5,a6,a7,a8,a9,a10,a11,a12,a13,a14,a15) {
+  var sp = stackSave();
+  try {
+    dynCall_viiiiiiiiiiiiiii(index,a1,a2,a3,a4,a5,a6,a7,a8,a9,a10,a11,a12,a13,a14,a15);
+  } catch(e) {
+    stackRestore(sp);
+    if (e !== e+0) throw e;
+    _setThrew(1, 0);
+  }
+}
+
+function invoke_viid(index,a1,a2,a3) {
+  var sp = stackSave();
+  try {
+    dynCall_viid(index,a1,a2,a3);
+  } catch(e) {
+    stackRestore(sp);
+    if (e !== e+0) throw e;
+    _setThrew(1, 0);
+  }
+}
+
+function invoke_vij(index,a1,a2,a3) {
+  var sp = stackSave();
+  try {
+    dynCall_vij(index,a1,a2,a3);
+  } catch(e) {
+    stackRestore(sp);
+    if (e !== e+0) throw e;
+    _setThrew(1, 0);
+  }
+}
+
+function invoke_ji(index,a1) {
+  var sp = stackSave();
+  try {
+    return dynCall_ji(index,a1);
+  } catch(e) {
+    stackRestore(sp);
+    if (e !== e+0) throw e;
+    _setThrew(1, 0);
+  }
+}
+
+function invoke_vijiiii(index,a1,a2,a3,a4,a5,a6,a7) {
+  var sp = stackSave();
+  try {
+    dynCall_vijiiii(index,a1,a2,a3,a4,a5,a6,a7);
+  } catch(e) {
+    stackRestore(sp);
+    if (e !== e+0) throw e;
+    _setThrew(1, 0);
+  }
+}
+
+function invoke_jii(index,a1,a2) {
+  var sp = stackSave();
+  try {
+    return dynCall_jii(index,a1,a2);
+  } catch(e) {
+    stackRestore(sp);
+    if (e !== e+0) throw e;
+    _setThrew(1, 0);
+  }
+}
+
+function invoke_viji(index,a1,a2,a3,a4) {
+  var sp = stackSave();
+  try {
+    dynCall_viji(index,a1,a2,a3,a4);
+  } catch(e) {
+    stackRestore(sp);
+    if (e !== e+0) throw e;
+    _setThrew(1, 0);
+  }
+}
+
+function invoke_iiji(index,a1,a2,a3,a4) {
+  var sp = stackSave();
+  try {
+    return dynCall_iiji(index,a1,a2,a3,a4);
+  } catch(e) {
+    stackRestore(sp);
+    if (e !== e+0) throw e;
+    _setThrew(1, 0);
+  }
+}
+
+function invoke_viij(index,a1,a2,a3,a4) {
+  var sp = stackSave();
+  try {
+    dynCall_viij(index,a1,a2,a3,a4);
+  } catch(e) {
+    stackRestore(sp);
+    if (e !== e+0) throw e;
+    _setThrew(1, 0);
+  }
+}
+
+function invoke_viijii(index,a1,a2,a3,a4,a5,a6) {
+  var sp = stackSave();
+  try {
+    dynCall_viijii(index,a1,a2,a3,a4,a5,a6);
+  } catch(e) {
+    stackRestore(sp);
+    if (e !== e+0) throw e;
+    _setThrew(1, 0);
+  }
+}
+
+function invoke_vijii(index,a1,a2,a3,a4,a5) {
+  var sp = stackSave();
+  try {
+    dynCall_vijii(index,a1,a2,a3,a4,a5);
+  } catch(e) {
+    stackRestore(sp);
+    if (e !== e+0) throw e;
+    _setThrew(1, 0);
+  }
+}
+
+function invoke_iijii(index,a1,a2,a3,a4,a5) {
+  var sp = stackSave();
+  try {
+    return dynCall_iijii(index,a1,a2,a3,a4,a5);
+  } catch(e) {
+    stackRestore(sp);
+    if (e !== e+0) throw e;
+    _setThrew(1, 0);
+  }
+}
+
+function invoke_iiijii(index,a1,a2,a3,a4,a5,a6) {
+  var sp = stackSave();
+  try {
+    return dynCall_iiijii(index,a1,a2,a3,a4,a5,a6);
+  } catch(e) {
+    stackRestore(sp);
+    if (e !== e+0) throw e;
+    _setThrew(1, 0);
+  }
+}
+
+function invoke_iiiji(index,a1,a2,a3,a4,a5) {
+  var sp = stackSave();
+  try {
+    return dynCall_iiiji(index,a1,a2,a3,a4,a5);
+  } catch(e) {
+    stackRestore(sp);
+    if (e !== e+0) throw e;
+    _setThrew(1, 0);
+  }
+}
+
+function invoke_j(index) {
+  var sp = stackSave();
+  try {
+    return dynCall_j(index);
+  } catch(e) {
+    stackRestore(sp);
+    if (e !== e+0) throw e;
+    _setThrew(1, 0);
+  }
+}
+
+function invoke_iiiiij(index,a1,a2,a3,a4,a5,a6) {
+  var sp = stackSave();
+  try {
+    return dynCall_iiiiij(index,a1,a2,a3,a4,a5,a6);
+  } catch(e) {
+    stackRestore(sp);
+    if (e !== e+0) throw e;
+    _setThrew(1, 0);
+  }
+}
+
+function invoke_iiiiijj(index,a1,a2,a3,a4,a5,a6,a7,a8) {
+  var sp = stackSave();
+  try {
+    return dynCall_iiiiijj(index,a1,a2,a3,a4,a5,a6,a7,a8);
+  } catch(e) {
+    stackRestore(sp);
+    if (e !== e+0) throw e;
+    _setThrew(1, 0);
+  }
+}
+
+function invoke_jiiii(index,a1,a2,a3,a4) {
+  var sp = stackSave();
+  try {
+    return dynCall_jiiii(index,a1,a2,a3,a4);
+  } catch(e) {
+    stackRestore(sp);
+    if (e !== e+0) throw e;
+    _setThrew(1, 0);
+  }
+}
 
 
 
@@ -6147,9 +7442,13 @@ var unexportedRuntimeSymbols = [
   'promiseMap',
   'newNativePromise',
   'getPromise',
+  'uncaughtExceptionCount',
+  'exceptionLast',
+  'exceptionCaught',
+  'ExceptionInfo',
+  'exception_addRef',
+  'exception_decRef',
   'getExceptionMessageCommon',
-  'getCppExceptionTag',
-  'getCppExceptionThrownObjectFromWebAssemblyException',
   'incrementExceptionRefcount',
   'decrementExceptionRefcount',
   'getExceptionMessage',
@@ -6189,6 +7488,8 @@ var unexportedRuntimeSymbols = [
   'GLEW',
   'IDBStore',
   'runAndAbortIfError',
+  'Asyncify',
+  'Fibers',
   'ALLOC_NORMAL',
   'ALLOC_STACK',
   'allocate',
@@ -6311,10 +7612,6 @@ var missingLibrarySymbols = [
   'dynCallLegacy',
   'getDynCaller',
   'dynCall',
-  'runtimeKeepalivePush',
-  'runtimeKeepalivePop',
-  'callUserCallback',
-  'maybeExit',
   'safeSetTimeout',
   'asmjsMangle',
   'handleAllocator',
@@ -6330,7 +7627,6 @@ var missingLibrarySymbols = [
   'ccall',
   'cwrap',
   'uleb128Encode',
-  'sigToWasmTypes',
   'generateFuncType',
   'convertJsFunctionToWasm',
   'getEmptyTableSlot',
@@ -6397,6 +7693,10 @@ var missingLibrarySymbols = [
   'polyfillSetImmediate',
   'newNativePromise',
   'getPromise',
+  'getExceptionMessageCommon',
+  'incrementExceptionRefcount',
+  'decrementExceptionRefcount',
+  'getExceptionMessage',
   'setMainLoop',
   '_setNetworkCallback',
   'heapObjectForWebGLType',
@@ -6414,7 +7714,6 @@ var missingLibrarySymbols = [
   'SDL_ttfContext',
   'SDL_audio',
   'GLFW_Window',
-  'runAndAbortIfError',
   'ALLOC_NORMAL',
   'ALLOC_STACK',
   'allocate',
