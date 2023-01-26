@@ -1,3 +1,10 @@
+// Desired behavior:
+// - New publisher
+//     - connect: create new queue with topic name
+//     - publish: broadcast to all subscribers
+// - Subscriber:
+// 
+
 class Queue {
     constructor() {
         this.elements = {};
@@ -28,37 +35,33 @@ class Queue {
 let msg_queue = new Queue();
 
 let pubPort;
+let subPort;
+
 let onMessageFromPub = function(event) {
-    console.log("[QUEUE] Received from pub: " + event.data);
-    msg_queue.enqueue(event.data);
+    let message = event.data;
+    console.log("[QUEUE] Received from pub: " + message);
+    msg_queue.enqueue(message);
 
     // To send something back to main
     self.postMessage({
         from: "pub",
-        message: event.data
+        message: message
     })
-    // subPort.postMessage("data: [W2] I got your message\n");
-};
-
-let subPort;
-let onMessageFromSub = function(event) {
-    console.log("[QUEUE] Received from sub: " + event.data);
-
-    let message = (msg_queue.isEmpty) ? "" : msg_queue.dequeue();
-
-    // Send something back to sub
-    subPort.postMessage(message);
-
-    console.log("[QUEUE] Message sent to sub");
-
-    // Send something back to main
-    if (!message.isEmpty) {
-        console.log("[QUEUE] Sending back to main");
+    
+    // Broadcast to all subscribers (currently 1)
+    if (typeof(subPort) != "undefined") {
+        console.log("is sub defined?" + typeof(subPort));
+        subPort.postMessage(message);
+        console.log("[QUEUE] Message sent to sub");
         self.postMessage({
             from: "sub",
             message: message
         });
     }
+};
+
+let onMessageFromSub = function(event) {
+    console.log("[QUEUE] Received from sub: " + event.data);
 }
 
 self.onmessage = function( event ) {
@@ -73,6 +76,16 @@ self.onmessage = function( event ) {
         case "connectSub":
             subPort = event.ports[0];
             subPort.onmessage = onMessageFromSub;
+            break;
+        
+        case "disconnectPub":
+            pubPort = undefined;
+            console.log("Publisher disconnected.");
+            break;
+
+        case "disconnectSub":
+            subPort = undefined;
+            console.log("Subscriber disconnected.");
             break;
 
         // handle other messages from main

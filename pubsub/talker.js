@@ -53,7 +53,7 @@ Module["js_talker"] = function js_talker(message)
 {
 
   if (message.startsWith("data:")) {
-    queuePort.postMessage(message + "\n");
+    queuePort.postMessage(message);
   }
   
   return 0;

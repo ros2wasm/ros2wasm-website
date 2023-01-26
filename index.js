@@ -6,10 +6,11 @@ queue.onmessage = function(event) {
     switch( event.data.from )
     {
         case "pub":
-            document.getElementById("talkerOutput").innerHTML += event.data.message;
+            document.getElementById("talkerOutput").innerHTML += event.data.message + "\n";
             break;
         case "sub":
-            document.getElementById("listenerOutput").innerHTML += event.data.message;
+            document.getElementById("listenerOutput").innerHTML += event.data.message + "\n";
+            break;
     }
 }
 
@@ -19,7 +20,7 @@ let channel_pub;
 
 function startTalker() {
 
-    document.getElementById("talkerOutput").innerHTML = "Initializing publisher...\n";
+    document.getElementById("talkerOutput").innerHTML += "Publisher initializing.\n";
 
     channel_pub = new MessageChannel();
 
@@ -43,9 +44,16 @@ function stopTalker() {
     talker.terminate();
     talker = undefined;
 
+    queue.postMessage({command: "disconnectSub"});
+
     channel_pub.port1.close();
     channel_pub.port2.close();
     channel_pub = undefined;
+
+    // Terminate subscriber to restablish connection at restart
+    if (typeof(listener) != "undefined") {
+        stopListener();
+    }
 
     document.getElementById("talkerOutput").innerHTML += "Publisher terminated.\n\n";
 }
@@ -61,7 +69,7 @@ let channel_sub;
 
 function startListener() {
 
-    document.getElementById("listenerOutput").innerHTML = "Initializing subscriber...\n";
+    document.getElementById("listenerOutput").innerHTML += "Subscriber initializing.\n";
 
     channel_sub = new MessageChannel();
 
@@ -85,10 +93,12 @@ function stopListener() {
     listener.terminate();
     listener = undefined;
 
+    queue.postMessage({command: "disconnectSub"});
+
     channel_sub.port1.close();
     channel_sub.port2.close();
     channel_sub = undefined;
-    
+
     document.getElementById("listenerOutput").innerHTML += "Subscriber terminated.\n\n";
 }
 

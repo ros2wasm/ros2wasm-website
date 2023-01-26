@@ -20,6 +20,7 @@ function sleep(ms) {
 }
 
 let lastMessage = "data: empty";
+let receivedNewMessage = false;
 
 let queuePort;
 let onMessageFromQueue = function(event) {
@@ -27,6 +28,7 @@ let onMessageFromQueue = function(event) {
 
     // Store message
     lastMessage = event.data;
+    receivedNewMessage = true;
     //To send something back to worker 1
     // queuePort.postMessage("[W2] I got your message\n");
 };
@@ -62,9 +64,16 @@ Module["js_talker"] = function js_talker(message)
 
 Module["js_listener"] = async function js_listener()
 {
-    queuePort.postMessage("Retrieve new message.");
-    await sleep(500);
-    return lastMessage;
+    // queuePort.postMessage("Retrieve new message.");
+    // await sleep(500);
+    if (receivedNewMessage) {
+      await sleep(5);
+      receivedNewMessage = false;
+      return lastMessage;
+    } else {
+      await sleep(100);
+      return "";
+    }
 };
 
 // See https://caniuse.com/mdn-javascript_builtins_object_assign
