@@ -1,57 +1,91 @@
-// MESSAGE QUEUE
-let queue = new Worker("queue.js");
+class Queue {
+    constructor() {
+        this.elements = {};
+        this.head = 0;
+        this.tail = 0;
+    }
+    enqueue(element) {
+        this.elements[this.tail] = element;
+        this.tail++;
+    }
+    dequeue() {
+        const item = this.elements[this.head];
+        delete this.elements[this.head];
+        this.head++;
+        return item;
+    }
+    peek() {
+        return this.elements[this.head];
+    }
+    get length() {
+        return this.tail - this.head;
+    }
+    get isEmpty() {
+        return this.length === 0;
+    }
+}
 
-// Receive messages from queue for printing output
-queue.onmessage = function(event) {
-    switch( event.data.from )
+let msg_queue = new Queue();
+let talker = null;
+let listener = null;
+
+  
+// Receive messages from workers
+let onMessageFromWorker = function( event ) {
+    switch( event.data.command )
     {
-        case "pub":
+        case "register":
+            console.log("MMM Registering new participant")
+            console.log(event.data.name)
+            console.log(event.data.gid)
+            break;
+
+        case "deregister":
+            console.log("MMM Deregister participant")
+            console.log(event.data.gid)
+            break;
+
+        case "publish":
+            msg_queue.enqueue( event.data.message );
             document.getElementById("talkerOutput").innerHTML += event.data.message + "\n";
             break;
-        case "sub":
-            document.getElementById("listenerOutput").innerHTML += event.data.message + "\n";
+
+        case "retrieve":
+    
+            if ( event.data.name == "/wasm_topic" ) {
+                console.log("MMM Retrieving message")
+                let retrieveMessage = "";
+                if (!msg_queue.isEmpty) {
+                    retrieveMessage = msg_queue.dequeue();
+                }
+                document.getElementById("listenerOutput").innerHTML += retrieveMessage + "\n";
+                listener.postMessage(retrieveMessage);
+                console.log("MMM Message sent back to wasm listener")
+            }
             break;
     }
 }
 
+
 // PUBLISHER 
-let talker;
-let channel_pub;
 
 function startTalker() {
 
     document.getElementById("talkerOutput").innerHTML += "Publisher initializing.\n";
 
-    channel_pub = new MessageChannel();
-
-    if (typeof(talker) == "undefined") {
+    if (talker === null) {
         talker = new Worker("pubsub/talker.js");
     }
 
-    // Setup the connection: Port 1 is for pub
-    talker.postMessage({
-        command : "connect",
-    },[ channel_pub.port1 ]);
-
-    // Setup the connection: Port 2 is for queue
-    queue.postMessage({
-        command : "connectPub",
-    },[ channel_pub.port2 ]);
-
+    talker.onmessage = onMessageFromWorker;
 }
 
 function stopTalker() {
     talker.terminate();
-    talker = undefined;
+    talker = null;
 
-    queue.postMessage({command: "disconnectSub"});
-
-    channel_pub.port1.close();
-    channel_pub.port2.close();
-    channel_pub = undefined;
-
-    // Terminate subscriber to restablish connection at restart
-    if (typeof(listener) != "undefined") {
+    // Terminate subscriber to reestablish connection at restart
+    if (listener !== null) {
         stopListener();
     }
 
@@ -64,40 +98,21 @@ function clearTalker() {
 
 
 // SUBSCRIBER
-let listener;
-let channel_sub;
 
 function startListener() {
 
     document.getElementById("listenerOutput").innerHTML += "Subscriber initializing.\n";
 
-    channel_sub = new MessageChannel();
-
-    if (typeof(listener) == "undefined") {
+    if (listener === null) {
         listener = new Worker("pubsub/listener.js");
     }
 
-    // Setup the connection: Port 1 is for queue
-    queue.postMessage({
-        command : "connectSub",
-    },[ channel_sub.port1 ]);
-
-    // Setup the connection: Port 2 is for sub
-    listener.postMessage({
-        command : "connect",
-    },[ channel_sub.port2 ]);
-
+    listener.onmessage = onMessageFromWorker;
 }
 
 function stopListener() {
     listener.terminate();
-    listener = undefined;
-
-    queue.postMessage({command: "disconnectSub"});
-
-    channel_sub.port1.close();
-    channel_sub.port2.close();
-    channel_sub = undefined;
+    listener = null;
 
     document.getElementById("listenerOutput").innerHTML += "Subscriber terminated.\n\n";
 }

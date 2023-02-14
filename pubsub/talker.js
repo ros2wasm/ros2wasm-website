@@ -15,56 +15,77 @@
 // can continue to use Module afterwards as well.
 var Module = typeof Module != 'undefined' ? Module : {};
 
+// *****************************************************************************
+
 function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-let queuePort;
-let onMessageFromQueue = function( event ){
-    console.log("[JS_PUB] Received: " + event.data + ":END");
+let lastMessage = "data: empty";
+let receivedNewMessage = false;
 
-    //To send something back to worker 2
-    // queuePort.postMessage("[W1] I got your message");
-};
+self.onmessage = function(event) {
+  // When a new message is received from main
+  lastMessage = event.data;
+  receivedNewMessage = true;
+}
 
-self.onmessage = function( event ) {
-    switch( event.data.command )
-    {
-        // Setup connection to queue
-        case "connect":
-            queuePort = event.ports[0];
-            queuePort.onmessage = onMessageFromQueue;
-            break;
-
-        // Forward messages to queue
-        case "publish":
-            // Forward messages to queue
-            queuePort.postMessage( event.data.message );
-            break;
-
-        // Handle other messages from main
-        default:
-            console.log( event.data );
-    }
-};
-
-
-Module["js_talker"] = function js_talker(message)
+Module["registerParticipant"] = function registerParticipant(name, role)
 {
+  let gid = Math.random().toString(16).slice(2)
 
+  // Register new participant with main
+  self.postMessage({
+    command: "register",
+    name:    name,
+    role:    role,
+    gid:     gid
+  });
+
+  return gid;
+}
+
+Module["deregisterParticipant"] = function deregisterParticipant(gid)
+{
+  // Deregister participant from main
+  self.postMessage({
+    command: "deregister",
+    gid:     gid
+  });
+
+  return;
+}
+
+Module["publishMessage"] = function publishMessage(message, topic_name)
+{
+  // Send message to main
   if (message.startsWith("data:")) {
-    queuePort.postMessage(message);
+    self.postMessage({
+      command: "publish",
+      name:    topic_name,
+      message: message
+    });
   }
-  
-  return 0;
-};
 
-Module["js_listener"] = async function js_listener()
+  // Assume it gets published
+  return true;
+}
+
+Module["retrieveMessage"] = async function retrieveMessage(topic_name)
 {
-    let js_message = "";
-    await sleep(500);
-    return js_message;
-};
+  // Trigger main to send new message
+  self.postMessage({
+    command: "retrieve",
+    name:    topic_name
+  });
+
+  await sleep(100);
+
+  return ( receivedNewMessage ? lastMessage : "" );
+}
+
+// *****************************************************************************
+
 
 // See https://caniuse.com/mdn-javascript_builtins_object_assign
 
@@ -388,7 +409,7 @@ var NODEFS = 'NODEFS is no longer included by default; build with -lnodefs.js';
 
 assert(!ENVIRONMENT_IS_SHELL, "shell environment detected but not enabled at build time.  Add 'shell' to `-sENVIRONMENT` to enable.");
 
-// include: support.js
+
 
 
 var STACK_ALIGN = 16;
@@ -449,18 +470,6 @@ function isExportedByForceFilesystem(name) {
          name === 'removeRunDependency';
 }
 
-function missingGlobal(sym, msg) {
-  Object.defineProperty(globalThis, sym, {
-    configurable: true,
-    get: function() {
-      warnOnce('`' + sym + '` is not longer defined by emscripten. ' + msg);
-      return undefined;
-    }
-  });
-}
-
-missingGlobal('buffer', 'Please use HEAP8.buffer or wasmMemory.buffer');
-
 function missingLibrarySymbol(sym) {
   if (typeof globalThis !== 'undefined' && !Object.getOwnPropertyDescriptor(globalThis, sym)) {
     Object.defineProperty(globalThis, sym, {
@@ -503,8 +512,6 @@ function unexportedRuntimeSymbol(sym) {
 }
 
 // end include: runtime_debug.js
-// end include: support.js
-
 
 
 // === Preamble library stuff ===
@@ -746,6 +753,8 @@ function lengthBytesUTF8(str) {
 // Memory management
 
 var HEAP,
+/** @type {!ArrayBuffer} */
+  buffer,
 /** @type {!Int8Array} */
   HEAP8,
 /** @type {!Uint8Array} */
@@ -763,16 +772,16 @@ var HEAP,
 /** @type {!Float64Array} */
   HEAPF64;
 
-function updateMemoryViews() {
-  var b = wasmMemory.buffer;
-  Module['HEAP8'] = HEAP8 = new Int8Array(b);
-  Module['HEAP16'] = HEAP16 = new Int16Array(b);
-  Module['HEAP32'] = HEAP32 = new Int32Array(b);
-  Module['HEAPU8'] = HEAPU8 = new Uint8Array(b);
-  Module['HEAPU16'] = HEAPU16 = new Uint16Array(b);
-  Module['HEAPU32'] = HEAPU32 = new Uint32Array(b);
-  Module['HEAPF32'] = HEAPF32 = new Float32Array(b);
-  Module['HEAPF64'] = HEAPF64 = new Float64Array(b);
+function updateGlobalBufferAndViews(buf) {
+  buffer = buf;
+  Module['HEAP8'] = HEAP8 = new Int8Array(buf);
+  Module['HEAP16'] = HEAP16 = new Int16Array(buf);
+  Module['HEAP32'] = HEAP32 = new Int32Array(buf);
+  Module['HEAPU8'] = HEAPU8 = new Uint8Array(buf);
+  Module['HEAPU16'] = HEAPU16 = new Uint16Array(buf);
+  Module['HEAPU32'] = HEAPU32 = new Uint32Array(buf);
+  Module['HEAPF32'] = HEAPF32 = new Float32Array(buf);
+  Module['HEAPF64'] = HEAPF64 = new Float64Array(buf);
 }
 
 var STACK_SIZE = 16777216;
@@ -1201,7 +1210,7 @@ function createWasm() {
     // mode.
     // TODO(sbc): Read INITIAL_MEMORY out of the wasm file in post-link mode.
     //assert(wasmMemory.buffer.byteLength === 67108864);
-    updateMemoryViews();
+    updateGlobalBufferAndViews(wasmMemory.buffer);
 
     wasmTable = Module['asm']['__indirect_function_table'];
     assert(wasmTable, "table not found in wasm exports");
@@ -1211,7 +1220,7 @@ function createWasm() {
     removeRunDependency('wasm-instantiate');
 
   }
-  // wait for the pthread pool (if any)
+  // we can't run yet (except in a pthread, where we have a custom sync instantiator)
   addRunDependency('wasm-instantiate');
 
   // Prefer streaming instantiation if available.
@@ -1387,7 +1396,6 @@ var ASM_CONSTS = {
     }
 
   function ptrToString(ptr) {
-      assert(typeof ptr === 'number');
       return '0x' + ptr.toString(16).padStart(8, '0');
     }
 
@@ -1457,6 +1465,11 @@ var ASM_CONSTS = {
       abort('Assertion failed: ' + UTF8ToString(condition) + ', at: ' + [filename ? UTF8ToString(filename) : 'unknown filename', line, func ? UTF8ToString(func) : 'unknown function']);
     }
 
+  function ___cxa_allocate_exception(size) {
+      // Thrown object is prepended by exception metadata block
+      return _malloc(size + 24) + 24;
+    }
+
   var exceptionCaught =  [];
   
   function exception_addRef(info) {
@@ -1476,7 +1489,6 @@ var ASM_CONSTS = {
       return info.get_exception_ptr();
     }
 
-  
   function ___cxa_current_primary_exception() {
       if (!exceptionCaught.length) {
         return 0;
@@ -1486,20 +1498,6 @@ var ASM_CONSTS = {
       return info.excPtr;
     }
 
-  function exception_decRef(info) {
-      // A rethrown exception can reach refcount 0; it must not be discarded
-      // Its next handler will clear the rethrown flag and addRef it, prior to
-      // final decRef and destruction here
-      if (info.release_ref() && !info.get_rethrown()) {
-        var destructor = info.get_destructor();
-        if (destructor) {
-          // In Wasm, destructors return 'this' as in ARM
-          ((a1) => dynCall_ii.apply(null, [destructor, a1]))(info.excPtr);
-        }
-        ___cxa_free_exception(info.excPtr);
-      }
-    }
-  
   /** @constructor */
   function ExceptionInfo(excPtr) {
       this.excPtr = excPtr;
@@ -1590,14 +1588,32 @@ var ASM_CONSTS = {
         return this.excPtr;
       };
     }
+  function ___cxa_free_exception(ptr) {
+      try {
+        return _free(new ExceptionInfo(ptr).ptr);
+      } catch(e) {
+        err('exception during __cxa_free_exception: ' + e);
+      }
+    }
+  function exception_decRef(info) {
+      // A rethrown exception can reach refcount 0; it must not be discarded
+      // Its next handler will clear the rethrown flag and addRef it, prior to
+      // final decRef and destruction here
+      if (info.release_ref() && !info.get_rethrown()) {
+        var destructor = info.get_destructor();
+        if (destructor) {
+          // In Wasm, destructors return 'this' as in ARM
+          ((a1) => dynCall_ii.apply(null, [destructor, a1]))(info.excPtr);
+        }
+        ___cxa_free_exception(info.excPtr);
+      }
+    }
   function ___cxa_decrement_exception_refcount(ptr) {
       if (!ptr) return;
       exception_decRef(new ExceptionInfo(ptr));
     }
 
-  
   var exceptionLast = 0;
-  
   function ___cxa_end_catch() {
       // Clear state flag.
       _setThrew(0);
@@ -1609,14 +1625,10 @@ var ASM_CONSTS = {
       exceptionLast = 0; // XXX in decRef?
     }
 
-  
-  
   function ___resumeException(ptr) {
       if (!exceptionLast) { exceptionLast = ptr; }
       throw ptr;
     }
-  
-  
   function ___cxa_find_matching_catch_2() {
       var thrown = exceptionLast;
       if (!thrown) {
@@ -1654,10 +1666,6 @@ var ASM_CONSTS = {
       return thrown;
     }
 
-  
-  
-  
-  
   function ___cxa_find_matching_catch_3() {
       var thrown = exceptionLast;
       if (!thrown) {
@@ -1695,10 +1703,6 @@ var ASM_CONSTS = {
       return thrown;
     }
 
-  
-  
-  
-  
   function ___cxa_find_matching_catch_4() {
       var thrown = exceptionLast;
       if (!thrown) {
@@ -1736,14 +1740,12 @@ var ASM_CONSTS = {
       return thrown;
     }
 
-  
+
   function ___cxa_increment_exception_refcount(ptr) {
       if (!ptr) return;
       exception_addRef(new ExceptionInfo(ptr));
     }
 
-  
-  
   function ___cxa_rethrow() {
       var info = exceptionCaught.pop();
       if (!info) {
@@ -1761,8 +1763,6 @@ var ASM_CONSTS = {
       throw ptr;
     }
 
-  
-  
   function ___cxa_rethrow_primary_exception(ptr) {
       if (!ptr) return;
       var info = new ExceptionInfo(ptr);
@@ -1771,8 +1771,6 @@ var ASM_CONSTS = {
       ___cxa_rethrow();
     }
 
-  
-  
   function ___cxa_throw(ptr, type, destructor) {
       var info = new ExceptionInfo(ptr);
       // Initialize ExceptionInfo content after it was allocated in __cxa_allocate_exception.
@@ -1872,8 +1870,6 @@ var ASM_CONSTS = {
       return () => abort("no cryptographic support found for randomDevice. consider polyfilling it if you want to use something insecure like Math.random(), e.g. put this in a --pre-js: var crypto = { getRandomValues: function(array) { for (var i = 0; i < array.length; i++) array[i] = (Math.random()*256)|0 } };");
     }
   
-  
-  
   var PATH_FS = {resolve:function() {
         var resolvedPath = '',
           resolvedAbsolute = false;
@@ -1924,7 +1920,6 @@ var ASM_CONSTS = {
         outputParts = outputParts.concat(toParts.slice(samePartsLength));
         return outputParts.join('/');
       }};
-  
   
   /** @type {function(string, boolean=, number=)} */
   function intArrayFromString(stringy, dontAddNull, length) {
@@ -2075,7 +2070,6 @@ var ASM_CONSTS = {
             tty.output = [];
           }
         }}};
-  
   
   function zeroMemory(address, size) {
       HEAPU8.fill(0, address, address + size);
@@ -2369,9 +2363,9 @@ var ASM_CONSTS = {
           var allocated;
           var contents = stream.node.contents;
           // Only make a new copy when MAP_PRIVATE is specified.
-          if (!(flags & 2) && contents.buffer === HEAP8.buffer) {
-            // We can't emulate MAP_SHARED when the file is not backed by the
-            // buffer we're mapping to (e.g. the HEAP buffer).
+          if (!(flags & 2) && contents.buffer === buffer) {
+            // We can't emulate MAP_SHARED when the file is not backed by the buffer
+            // we're mapping to (e.g. the HEAP buffer).
             allocated = false;
             ptr = contents.byteOffset;
           } else {
@@ -2414,11 +2408,9 @@ var ASM_CONSTS = {
       if (dep) addRunDependency(dep);
     }
   
-  
   var ERRNO_MESSAGES = {0:"Success",1:"Arg list too long",2:"Permission denied",3:"Address already in use",4:"Address not available",5:"Address family not supported by protocol family",6:"No more processes",7:"Socket already connected",8:"Bad file number",9:"Trying to read unreadable message",10:"Mount device busy",11:"Operation canceled",12:"No children",13:"Connection aborted",14:"Connection refused",15:"Connection reset by peer",16:"File locking deadlock error",17:"Destination address required",18:"Math arg out of domain of func",19:"Quota exceeded",20:"File exists",21:"Bad address",22:"File too large",23:"Host is unreachable",24:"Identifier removed",25:"Illegal byte sequence",26:"Connection already in progress",27:"Interrupted system call",28:"Invalid argument",29:"I/O error",30:"Socket is already connected",31:"Is a directory",32:"Too many symbolic links",33:"Too many open files",34:"Too many links",35:"Message too long",36:"Multihop attempted",37:"File or path name too long",38:"Network interface is not configured",39:"Connection reset by network",40:"Network is unreachable",41:"Too many open files in system",42:"No buffer space available",43:"No such device",44:"No such file or directory",45:"Exec format error",46:"No record locks available",47:"The link has been severed",48:"Not enough core",49:"No message of desired type",50:"Protocol not available",51:"No space left on device",52:"Function not implemented",53:"Socket is not connected",54:"Not a directory",55:"Directory not empty",56:"State not recoverable",57:"Socket operation on non-socket",59:"Not a typewriter",60:"No such device or address",61:"Value too large for defined data type",62:"Previous owner died",63:"Not super-user",64:"Broken pipe",65:"Protocol error",66:"Unknown protocol",67:"Protocol wrong type for socket",68:"Math result not representable",69:"Read only file system",70:"Illegal seek",71:"No such process",72:"Stale file handle",73:"Connection timed out",74:"Text file busy",75:"Cross-device link",100:"Device not a stream",101:"Bad font file fmt",102:"Invalid slot",103:"Invalid request code",104:"No anode",105:"Block device required",106:"Channel number out of range",107:"Level 3 halted",108:"Level 3 reset",109:"Link number out of range",110:"Protocol driver not attached",111:"No CSI structure available",112:"Level 2 halted",113:"Invalid exchange",114:"Invalid request descriptor",115:"Exchange full",116:"No data (for no delay io)",117:"Timer expired",118:"Out of streams resources",119:"Machine is not on the network",120:"Package not installed",121:"The object is remote",122:"Advertise error",123:"Srmount error",124:"Communication error on send",125:"Cross mount point (not really error)",126:"Given log. name not unique",127:"f.d. invalid for this operation",128:"Remote address changed",129:"Can   access a needed shared lib",130:"Accessing a corrupted shared lib",131:".lib section in a.out corrupted",132:"Attempting to link in too many libs",133:"Attempting to exec a shared library",135:"Streams pipe error",136:"Too many users",137:"Socket type not supported",138:"Not supported",139:"Protocol family not supported",140:"Can't send after socket shutdown",141:"Too many references",142:"Host is down",148:"No medium (in tape drive)",156:"Level 2 not synchronized"};
   
   var ERRNO_CODES = {};
-  
   var FS = {root:null,mounts:[],devices:{},streams:[],nextInode:1,nameTable:null,currentPath:"/",initialized:false,ignorePermissions:true,ErrnoError:null,genericErrors:{},filesystems:null,syncFSRequests:0,lookupPath:(path, opts = {}) => {
         path = PATH_FS.resolve(path);
   
@@ -4023,15 +4015,12 @@ var ASM_CONSTS = {
         (tempI64 = [stat.size>>>0,(tempDouble=stat.size,(+(Math.abs(tempDouble))) >= 1.0 ? (tempDouble > 0.0 ? ((Math.min((+(Math.floor((tempDouble)/4294967296.0))), 4294967295.0))|0)>>>0 : (~~((+(Math.ceil((tempDouble - +(((~~(tempDouble)))>>>0))/4294967296.0)))))>>>0) : 0)],HEAP32[(((buf)+(40))>>2)] = tempI64[0],HEAP32[(((buf)+(44))>>2)] = tempI64[1]);
         HEAP32[(((buf)+(48))>>2)] = 4096;
         HEAP32[(((buf)+(52))>>2)] = stat.blocks;
-        var atime = stat.atime.getTime();
-        var mtime = stat.mtime.getTime();
-        var ctime = stat.ctime.getTime();
-        (tempI64 = [Math.floor(atime / 1000)>>>0,(tempDouble=Math.floor(atime / 1000),(+(Math.abs(tempDouble))) >= 1.0 ? (tempDouble > 0.0 ? ((Math.min((+(Math.floor((tempDouble)/4294967296.0))), 4294967295.0))|0)>>>0 : (~~((+(Math.ceil((tempDouble - +(((~~(tempDouble)))>>>0))/4294967296.0)))))>>>0) : 0)],HEAP32[(((buf)+(56))>>2)] = tempI64[0],HEAP32[(((buf)+(60))>>2)] = tempI64[1]);
-        HEAPU32[(((buf)+(64))>>2)] = (atime % 1000) * 1000;
-        (tempI64 = [Math.floor(mtime / 1000)>>>0,(tempDouble=Math.floor(mtime / 1000),(+(Math.abs(tempDouble))) >= 1.0 ? (tempDouble > 0.0 ? ((Math.min((+(Math.floor((tempDouble)/4294967296.0))), 4294967295.0))|0)>>>0 : (~~((+(Math.ceil((tempDouble - +(((~~(tempDouble)))>>>0))/4294967296.0)))))>>>0) : 0)],HEAP32[(((buf)+(72))>>2)] = tempI64[0],HEAP32[(((buf)+(76))>>2)] = tempI64[1]);
-        HEAPU32[(((buf)+(80))>>2)] = (mtime % 1000) * 1000;
-        (tempI64 = [Math.floor(ctime / 1000)>>>0,(tempDouble=Math.floor(ctime / 1000),(+(Math.abs(tempDouble))) >= 1.0 ? (tempDouble > 0.0 ? ((Math.min((+(Math.floor((tempDouble)/4294967296.0))), 4294967295.0))|0)>>>0 : (~~((+(Math.ceil((tempDouble - +(((~~(tempDouble)))>>>0))/4294967296.0)))))>>>0) : 0)],HEAP32[(((buf)+(88))>>2)] = tempI64[0],HEAP32[(((buf)+(92))>>2)] = tempI64[1]);
-        HEAPU32[(((buf)+(96))>>2)] = (ctime % 1000) * 1000;
+        (tempI64 = [Math.floor(stat.atime.getTime() / 1000)>>>0,(tempDouble=Math.floor(stat.atime.getTime() / 1000),(+(Math.abs(tempDouble))) >= 1.0 ? (tempDouble > 0.0 ? ((Math.min((+(Math.floor((tempDouble)/4294967296.0))), 4294967295.0))|0)>>>0 : (~~((+(Math.ceil((tempDouble - +(((~~(tempDouble)))>>>0))/4294967296.0)))))>>>0) : 0)],HEAP32[(((buf)+(56))>>2)] = tempI64[0],HEAP32[(((buf)+(60))>>2)] = tempI64[1]);
+        HEAPU32[(((buf)+(64))>>2)] = 0;
+        (tempI64 = [Math.floor(stat.mtime.getTime() / 1000)>>>0,(tempDouble=Math.floor(stat.mtime.getTime() / 1000),(+(Math.abs(tempDouble))) >= 1.0 ? (tempDouble > 0.0 ? ((Math.min((+(Math.floor((tempDouble)/4294967296.0))), 4294967295.0))|0)>>>0 : (~~((+(Math.ceil((tempDouble - +(((~~(tempDouble)))>>>0))/4294967296.0)))))>>>0) : 0)],HEAP32[(((buf)+(72))>>2)] = tempI64[0],HEAP32[(((buf)+(76))>>2)] = tempI64[1]);
+        HEAPU32[(((buf)+(80))>>2)] = 0;
+        (tempI64 = [Math.floor(stat.ctime.getTime() / 1000)>>>0,(tempDouble=Math.floor(stat.ctime.getTime() / 1000),(+(Math.abs(tempDouble))) >= 1.0 ? (tempDouble > 0.0 ? ((Math.min((+(Math.floor((tempDouble)/4294967296.0))), 4294967295.0))|0)>>>0 : (~~((+(Math.ceil((tempDouble - +(((~~(tempDouble)))>>>0))/4294967296.0)))))>>>0) : 0)],HEAP32[(((buf)+(88))>>2)] = tempI64[0],HEAP32[(((buf)+(92))>>2)] = tempI64[1]);
+        HEAPU32[(((buf)+(96))>>2)] = 0;
         (tempI64 = [stat.ino>>>0,(tempDouble=stat.ino,(+(Math.abs(tempDouble))) >= 1.0 ? (tempDouble > 0.0 ? ((Math.min((+(Math.floor((tempDouble)/4294967296.0))), 4294967295.0))|0)>>>0 : (~~((+(Math.ceil((tempDouble - +(((~~(tempDouble)))>>>0))/4294967296.0)))))>>>0) : 0)],HEAP32[(((buf)+(104))>>2)] = tempI64[0],HEAP32[(((buf)+(108))>>2)] = tempI64[1]);
         return 0;
       },doMsync:function(addr, stream, len, flags, offset) {
@@ -4090,7 +4079,6 @@ var ASM_CONSTS = {
       HEAP32[((___errno_location())>>2)] = value;
       return value;
     }
-  
   function ___syscall_fcntl64(fd, cmd, varargs) {
   SYSCALLS.varargs = varargs;
   try {
@@ -4373,9 +4361,6 @@ var ASM_CONSTS = {
       throw new BindingError(message);
     }
   
-  
-  
-  
   var InternalError = undefined;
   function throwInternalError(message) {
       throw new InternalError(message);
@@ -4489,9 +4474,6 @@ var ASM_CONSTS = {
       }
     }
   
-  
-  
-  
   function count_emval_handles() {
       var count = 0;
       for (var i = 5; i < emval_handle_array.length; ++i) {
@@ -4535,8 +4517,6 @@ var ASM_CONSTS = {
           }
         }
       }};
-  
-  
   
   function simpleReadValueFromPointer(pointer) {
       return this['fromWireType'](HEAP32[((pointer)>>2)]);
@@ -4586,9 +4566,6 @@ var ASM_CONSTS = {
               throw new TypeError("Unknown float type: " + name);
       }
     }
-  
-  
-  
   function __embind_register_float(rawType, name, size) {
       var shift = getShiftFromSize(size);
       name = readLatin1String(name);
@@ -4611,8 +4588,6 @@ var ASM_CONSTS = {
       });
     }
 
-  
-  
   function integerReadValueFromPointer(name, shift, signed) {
       // integers are quite common, so generate very specialized functions
       switch (shift) {
@@ -4629,8 +4604,6 @@ var ASM_CONSTS = {
               throw new TypeError("Unknown integer type: " + name);
       }
     }
-  
-  
   function __embind_register_integer(primitiveType, name, size, minRange, maxRange) {
       name = readLatin1String(name);
       // LLVM doesn't have signed and unsigned 32-bit types, so u32 literals come
@@ -4681,7 +4654,6 @@ var ASM_CONSTS = {
       });
     }
 
-  
   function __embind_register_memory_view(rawType, dataTypeIndex, name) {
       var typeMapping = [
         Int8Array,
@@ -4701,7 +4673,7 @@ var ASM_CONSTS = {
         var heap = HEAPU32;
         var size = heap[handle]; // in elements
         var data = heap[handle + 1]; // byte offset into emscripten heap
-        return new TA(heap.buffer, data, size);
+        return new TA(buffer, data, size);
       }
   
       name = readLatin1String(name);
@@ -4715,9 +4687,6 @@ var ASM_CONSTS = {
       });
     }
 
-  
-  
-  
   function __embind_register_std_string(rawType, name) {
       name = readLatin1String(name);
       var stdStringIsUTF8
@@ -4811,9 +4780,6 @@ var ASM_CONSTS = {
       });
     }
 
-  
-  
-  
   var UTF16Decoder = typeof TextDecoder != 'undefined' ? new TextDecoder('utf-16le') : undefined;;
   function UTF16ToString(ptr, maxBytesToRead) {
       assert(ptr % 2 == 0, 'Pointer passed to UTF16ToString must be aligned to two bytes!');
@@ -5005,7 +4971,6 @@ var ASM_CONSTS = {
       });
     }
 
-  
   function __embind_register_void(rawType, name) {
       name = readLatin1String(name);
       registerType(rawType, {
@@ -5033,16 +4998,12 @@ var ASM_CONSTS = {
       stringToUTF8(thisProgram, str, len);
     }
 
-  
-  
-  
   function getTypeName(type) {
       var ptr = ___getTypeName(type);
       var rv = readLatin1String(ptr);
       _free(ptr);
       return rv;
     }
-  
   function requireRegisteredType(rawType, humanName) {
       var impl = registeredTypes[rawType];
       if (undefined === impl) {
@@ -5059,7 +5020,6 @@ var ASM_CONSTS = {
       return returnType['toWireType'](destructors, handle);
     }
 
-  
   function runAndAbortIfError(func) {
       try {
         return func();
@@ -5086,7 +5046,6 @@ var ASM_CONSTS = {
       quit_(1, e);
     }
   
-  
   function _proc_exit(code) {
       EXITSTATUS = code;
       if (!keepRuntimeAlive()) {
@@ -5112,7 +5071,6 @@ var ASM_CONSTS = {
       _proc_exit(status);
     }
   var _exit = exitJS;
-  
   function maybeExit() {
       if (!keepRuntimeAlive()) {
         try {
@@ -5166,8 +5124,6 @@ var ASM_CONSTS = {
       assert(runtimeKeepaliveCounter > 0);
       runtimeKeepaliveCounter -= 1;
     }
-  
-  
   var Asyncify = {instrumentWasmImports:function(imports) {
         var ASYNCIFY_IMPORTS = ["env.invoke_*","env.emscripten_sleep","env.emscripten_wget","env.emscripten_wget_data","env.emscripten_idb_load","env.emscripten_idb_store","env.emscripten_idb_delete","env.emscripten_idb_exists","env.emscripten_idb_load_blob","env.emscripten_idb_store_blob","env.SDL_Delay","env.emscripten_scan_registers","env.emscripten_lazy_load_code","env.emscripten_fiber_swap","wasi_snapshot_preview1.fd_sync","env.__wasi_fd_sync","env._emval_await","env._dlopen_js","env.__asyncjs__*"].map((x) => x.split('.')[1]);
         for (var x in imports) {
@@ -5404,7 +5360,6 @@ var ASM_CONSTS = {
       }
       return a;
     }
-  
   function __emval_call(handle, argCount, argTypes, argv) {
       handle = Emval.toValue(handle);
       var types = emval_lookupTypes(argCount, argTypes);
@@ -5422,7 +5377,6 @@ var ASM_CONSTS = {
 
 
   var emval_symbols = {};
-  
   function getStringOrSymbol(address) {
       var symbol = emval_symbols[address];
       if (symbol === undefined) {
@@ -5430,14 +5384,11 @@ var ASM_CONSTS = {
       }
       return symbol;
     }
-  
   function __emval_get_module_property(name) {
       name = getStringOrSymbol(name);
       return Emval.toHandle(Module[name]);
     }
 
-  
-  
   function runDestructors(destructors) {
       while (destructors.length) {
         var ptr = destructors.pop();
@@ -5468,7 +5419,6 @@ var ASM_CONSTS = {
       HEAP32[(((tmPtr)+(28))>>2)] = yday;
     }
 
-  
   function __isLeapYear(year) {
         return year%4 === 0 && (year%100 !== 0 || year%400 === 0);
     }
@@ -5580,14 +5530,13 @@ var ASM_CONSTS = {
     }
   
   function emscripten_realloc_buffer(size) {
-      var b = wasmMemory.buffer;
       try {
         // round size grow request up to wasm page size (fixed 64KB per spec)
-        wasmMemory.grow((size - b.byteLength + 65535) >>> 16); // .grow() takes a delta compared to the previous size
-        updateMemoryViews();
+        wasmMemory.grow((size - buffer.byteLength + 65535) >>> 16); // .grow() takes a delta compared to the previous size
+        updateGlobalBufferAndViews(wasmMemory.buffer);
         return 1 /*success*/;
       } catch(e) {
-        err('emscripten_realloc_buffer: Attempted to grow heap from ' + b.byteLength  + ' bytes to ' + size + ' bytes, but got error: ' + e);
+        err('emscripten_realloc_buffer: Attempted to grow heap from ' + buffer.byteLength  + ' bytes to ' + size + ' bytes, but got error: ' + e);
       }
       // implicit 0 return to save code size (caller will cast "undefined" into 0
       // anyhow)
@@ -5691,7 +5640,6 @@ var ASM_CONSTS = {
       // Null-terminate the pointer to the HEAP.
       if (!dontAddNull) HEAP8[((buffer)>>0)] = 0;
     }
-  
   function _environ_get(__environ, environ_buf) {
       var bufSize = 0;
       getEnvStrings().forEach(function(string, i) {
@@ -5703,7 +5651,6 @@ var ASM_CONSTS = {
       return 0;
     }
 
-  
   function _environ_sizes_get(penviron_count, penviron_buf_size) {
       var strings = getEnvStrings();
       HEAPU32[((penviron_count)>>2)] = strings.length;
@@ -5760,13 +5707,9 @@ var ASM_CONSTS = {
         if (curr < 0) return -1;
         ret += curr;
         if (curr < len) break; // nothing more to read
-        if (typeof offset !== 'undefined') {
-          offset += curr;
-        }
       }
       return ret;
     }
-  
   function _fd_read(fd, iov, iovcnt, pnum) {
   try {
   
@@ -5785,10 +5728,6 @@ var ASM_CONSTS = {
       assert(hi === (hi|0));                    // hi should be a i32
       return ((hi + 0x200000) >>> 0 < 0x400001 - !!lo) ? (lo >>> 0) + hi * 4294967296 : NaN;
     }
-  
-  
-  
-  
   function _fd_seek(fd, offset_low, offset_high, whence, newOffset) {
   try {
   
@@ -5814,13 +5753,9 @@ var ASM_CONSTS = {
         var curr = FS.write(stream, HEAP8,ptr, len, offset);
         if (curr < 0) return -1;
         ret += curr;
-        if (typeof offset !== 'undefined') {
-          offset += curr;
-        }
       }
       return ret;
     }
-  
   function _fd_write(fd, iov, iovcnt, pnum) {
   try {
   
@@ -5838,7 +5773,6 @@ var ASM_CONSTS = {
       return type;
     }
 
-  
   function __arraySum(array, index) {
       var sum = 0;
       for (var i = 0; i <= index; sum += array[i++]) {
@@ -5846,7 +5780,6 @@ var ASM_CONSTS = {
       }
       return sum;
     }
-  
   
   var __MONTH_DAYS_LEAP = [31,29,31,30,31,30,31,31,30,31,30,31];
   
@@ -5877,9 +5810,6 @@ var ASM_CONSTS = {
   
       return newDate;
     }
-  
-  
-  
   
   function writeArrayToMemory(array, buffer) {
       assert(array.length >= 0, 'writeArrayToMemory array must have a length (should be an array or typed array)')
@@ -6184,7 +6114,6 @@ var ASM_CONSTS = {
     }
 
   var wasmTableMirror = [];
-  
   function getWasmTableEntry(funcPtr) {
       var func = wasmTableMirror[funcPtr];
       if (!func) {
@@ -6376,6 +6305,7 @@ function checkIncomingModuleAPI() {
 }
 var asmLibraryArg = {
   "__assert_fail": ___assert_fail,
+  "__cxa_allocate_exception": ___cxa_allocate_exception,
   "__cxa_begin_catch": ___cxa_begin_catch,
   "__cxa_current_primary_exception": ___cxa_current_primary_exception,
   "__cxa_decrement_exception_refcount": ___cxa_decrement_exception_refcount,
@@ -6383,6 +6313,7 @@ var asmLibraryArg = {
   "__cxa_find_matching_catch_2": ___cxa_find_matching_catch_2,
   "__cxa_find_matching_catch_3": ___cxa_find_matching_catch_3,
   "__cxa_find_matching_catch_4": ___cxa_find_matching_catch_4,
+  "__cxa_free_exception": ___cxa_free_exception,
   "__cxa_increment_exception_refcount": ___cxa_increment_exception_refcount,
   "__cxa_rethrow": ___cxa_rethrow,
   "__cxa_rethrow_primary_exception": ___cxa_rethrow_primary_exception,
@@ -6484,9 +6415,6 @@ var _main = Module["_main"] = createExportWrapper("__main_argc_argv");
 
 /** @type {function(...*):?} */
 var getTempRet0 = Module["getTempRet0"] = createExportWrapper("getTempRet0");
-
-/** @type {function(...*):?} */
-var ___cxa_free_exception = Module["___cxa_free_exception"] = createExportWrapper("__cxa_free_exception");
 
 /** @type {function(...*):?} */
 var ___cxa_demangle = Module["___cxa_demangle"] = createExportWrapper("__cxa_demangle");
@@ -7260,7 +7188,6 @@ var unexportedRuntimeSymbols = [
   'asyncLoad',
   'alignMemory',
   'mmapAlloc',
-  'handleAllocator',
   'writeI53ToI64',
   'writeI53ToI64Clamped',
   'writeI53ToI64Signaling',
@@ -7372,9 +7299,6 @@ var unexportedRuntimeSymbols = [
   'setImmediateWrapped',
   'clearImmediateWrapped',
   'polyfillSetImmediate',
-  'promiseMap',
-  'newNativePromise',
-  'getPromise',
   'uncaughtExceptionCount',
   'exceptionLast',
   'exceptionCaught',
@@ -7547,7 +7471,6 @@ var missingLibrarySymbols = [
   'dynCall',
   'safeSetTimeout',
   'asmjsMangle',
-  'handleAllocator',
   'writeI53ToI64',
   'writeI53ToI64Clamped',
   'writeI53ToI64Signaling',
@@ -7624,8 +7547,6 @@ var missingLibrarySymbols = [
   'setImmediateWrapped',
   'clearImmediateWrapped',
   'polyfillSetImmediate',
-  'newNativePromise',
-  'getPromise',
   'getExceptionMessageCommon',
   'incrementExceptionRefcount',
   'decrementExceptionRefcount',
@@ -7817,6 +7738,8 @@ var shouldRunNow = true;
 if (Module['noInitialRun']) shouldRunNow = false;
 
 run();
+
+
 
 
 
