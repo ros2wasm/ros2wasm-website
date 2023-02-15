@@ -23,23 +23,23 @@ function sleep(ms) {
 
 let lastMessage = "data: empty";
 let receivedNewMessage = false;
+let topic = "";
 
 self.onmessage = function(event) {
   // When a new message is received from main
   lastMessage = event.data;
   receivedNewMessage = true;
-  console.log("MMM Was there any message??");
-  console.log("MMM " + lastMessage + " MMM");
 }
 
-Module["registerParticipant"] = function registerParticipant(name, role)
+Module["registerParticipant"] = function registerParticipant(topic_name, role)
 {
+  topic = topic_name;
   let gid = Math.random().toString(16).slice(2)
 
   // Register new participant with main
   self.postMessage({
     command: "register",
-    name:    name,
+    topic:   topic_name,
     role:    role,
     gid:     gid
   });
@@ -52,6 +52,7 @@ Module["deregisterParticipant"] = function deregisterParticipant(gid)
   // Deregister participant from main
   self.postMessage({
     command: "deregister",
+    topic:   topic,
     gid:     gid
   });
 
@@ -64,7 +65,7 @@ Module["publishMessage"] = function publishMessage(message, topic_name)
   if (message.startsWith("data:")) {
     self.postMessage({
       command: "publish",
-      name:    topic_name,
+      topic:    topic_name,
       message: message
     });
   }
@@ -78,10 +79,12 @@ Module["retrieveMessage"] = async function retrieveMessage(topic_name)
   // Trigger main to send new message
   self.postMessage({
     command: "retrieve",
-    name:    topic_name
+    topic:    topic_name
   });
 
   await sleep(100);
+
+  // setTimeout(() => { }, 1000)
 
   return ( receivedNewMessage ? lastMessage : "" );
 }

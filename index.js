@@ -25,7 +25,10 @@ class Queue {
     }
 }
 
-let msg_queue = new Queue();
+
+const topicMap = {};
+
+
 let talker = null;
 let listener = null;
 
@@ -35,31 +38,52 @@ let onMessageFromWorker = function( event ) {
     switch( event.data.command )
     {
         case "register":
-            console.log("MMM Registering new participant")
-            console.log(event.data.name)
-            console.log(event.data.gid)
+            console.log("[MAIN] Registering new participant")
+
+            if (!(event.data.topic in topicMap)) {
+                topicMap[event.data.topic] = {
+                    messages: new Queue(),
+                    participants: []
+                }
+            }
+
+            topicMap[event.data.topic].participants.push(event.data.gid);
+            
             break;
 
         case "deregister":
-            console.log("MMM Deregister participant")
-            console.log(event.data.gid)
+            console.log("[MAIN] Deregister participant")
+
+            let gidIndex = topicMap[event.data.topic].participants.indexOf(gid);
+
+            // Remove from topic map
+            topicMap[event.data.topic].participants.splice(gidIndex, 1);
+
+            if (topicMap[event.data.topic].participants.length == 0) {
+                delete topicMap[event.data.topic];
+            }
+
             break;
 
         case "publish":
-            msg_queue.enqueue( event.data.message );
+            topicMap[event.data.topic].messages.enqueue(event.data.message);
             document.getElementById("talkerOutput").innerHTML += event.data.message + "\n";
             break;
 
         case "retrieve":
     
-            if ( event.data.name == "/wasm_topic" ) {
+            if ( event.data.topic == "/wasm_topic" ) {
                 console.log("MMM Retrieving message")
-                let retrieveMessage = "";
-                if (!msg_queue.isEmpty) {
-                    retrieveMessage = msg_queue.dequeue();
+                let msg = (
+                    topicMap[event.data.topic].messages.isEmpty ?
+                    "" :
+                    topicMap[event.data.topic].messages.dequeue()
+                );
+                
+                if (msg !== "") {
+                    document.getElementById("listenerOutput").innerHTML += msg + "\n";
                 }
-                document.getElementById("listenerOutput").innerHTML += retrieveMessage + "\n";
-                listener.postMessage(retrieveMessage);
+                listener.postMessage(msg);
                 console.log("MMM Message sent back to wasm listener")
             }
             break;
@@ -85,9 +109,7 @@ function stopTalker() {
     talker = null;
 
     // Terminate subscriber to reestablish connection at restart
-    if (listener !== null) {
-        stopListener();
-    }
+    if (listener !== null) { stopListener(); }
 
     document.getElementById("talkerOutput").innerHTML += "Publisher terminated.\n\n";
 }
@@ -113,7 +135,6 @@ function startListener() {
 function stopListener() {
     listener.terminate();
     listener = null;
-
     document.getElementById("listenerOutput").innerHTML += "Subscriber terminated.\n\n";
 }
 
