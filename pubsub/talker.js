@@ -15,6 +15,7 @@
 // can continue to use Module afterwards as well.
 var Module = typeof Module != 'undefined' ? Module : {};
 
+
 // *****************************************************************************
 
 function sleep(ms) {
@@ -76,6 +77,7 @@ Module["publishMessage"] = function publishMessage(message, topic_name)
 
 Module["retrieveMessage"] = async function retrieveMessage(topic_name)
 {
+  receivedNewMessage = false;
   // Trigger main to send new message
   self.postMessage({
     command: "retrieve",
@@ -83,8 +85,6 @@ Module["retrieveMessage"] = async function retrieveMessage(topic_name)
   });
 
   await sleep(100);
-
-  // setTimeout(() => { }, 1000)
 
   return ( receivedNewMessage ? lastMessage : "" );
 }

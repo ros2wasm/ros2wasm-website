@@ -1,34 +1,40 @@
-class Queue {
-    constructor() {
-        this.elements = {};
-        this.head = 0;
-        this.tail = 0;
+class CircularQueue {
+    constructor(size) {
+        this.element = [];
+        this.size = size
+        this.back = -1
     }
+    
+    isEmpty() {
+        return (this.element.length == 0)
+    }
+    
     enqueue(element) {
-        this.elements[this.tail] = element;
-        this.tail++;
+        this.back++;
+        this.back = (this.back < this.size) ? this.back : 0;
+        this.element[this.back] = element;
     }
+    
     dequeue() {
-        const item = this.elements[this.head];
-        delete this.elements[this.head];
-        this.head++;
-        return item;
+        // LIFO : get most recent
+        if (this.isEmpty()) return null;
+        const value = this.getBack();
+        this.element[this.back] = null;
+        return value
     }
-    peek() {
-        return this.elements[this.head];
+
+    getBack() {
+        return this.element[this.back]
     }
-    get length() {
-        return this.tail - this.head;
-    }
-    get isEmpty() {
-        return this.length === 0;
+    
+    clear() {
+        this.element = new Array()
+        this.back = -1
     }
 }
 
 
 const topicMap = {};
-
-
 let talker = null;
 let listener = null;
 
@@ -38,11 +44,9 @@ let onMessageFromWorker = function( event ) {
     switch( event.data.command )
     {
         case "register":
-            console.log("[MAIN] Registering new participant")
-
             if (!(event.data.topic in topicMap)) {
                 topicMap[event.data.topic] = {
-                    messages: new Queue(),
+                    messages: new CircularQueue(5),
                     participants: []
                 }
             }
@@ -52,8 +56,6 @@ let onMessageFromWorker = function( event ) {
             break;
 
         case "deregister":
-            console.log("[MAIN] Deregister participant")
-
             let gidIndex = topicMap[event.data.topic].participants.indexOf(gid);
 
             // Remove from topic map
@@ -73,18 +75,14 @@ let onMessageFromWorker = function( event ) {
         case "retrieve":
     
             if ( event.data.topic == "/wasm_topic" ) {
-                console.log("MMM Retrieving message")
-                let msg = (
-                    topicMap[event.data.topic].messages.isEmpty ?
-                    "" :
-                    topicMap[event.data.topic].messages.dequeue()
-                );
+                let msg = topicMap[event.data.topic].messages.dequeue();
                 
-                if (msg !== "") {
+                if (msg !== null) {
                     document.getElementById("listenerOutput").innerHTML += msg + "\n";
-                }
-                listener.postMessage(msg);
-                console.log("MMM Message sent back to wasm listener")
+
+                    // TODO: broadcast to all subscribers
+                    listener.postMessage(msg);
+                } 
             }
             break;
     }
@@ -133,8 +131,10 @@ function startListener() {
 }
 
 function stopListener() {
-    listener.terminate();
-    listener = null;
+    if (listener !== null) {
+        listener.terminate();
+        listener = null;
+    }
     document.getElementById("listenerOutput").innerHTML += "Subscriber terminated.\n\n";
 }
 

@@ -42,5 +42,6 @@ textarea {
     display: block;
     background-color: black;
     color: #5E95CB;
-    font-family: 'Lucida Console', Monaco, monospace;
+    font-family: 'Ubuntu Mono', 'Noto Mono', 'Liberation Mono';
+    font-size: 14px;
 }
