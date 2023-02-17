@@ -1,35 +1,32 @@
-class CircularQueue {
+class CircularStack {
     constructor(size) {
         this.element = [];
         this.size = size
-        this.back = -1
+        this.top = -1
     }
     
     isEmpty() {
         return (this.element.length == 0)
     }
     
-    enqueue(element) {
-        this.back++;
-        this.back = (this.back < this.size) ? this.back : 0;
-        this.element[this.back] = element;
+    push(element) {
+        this.top++;
+        // Wrap around
+        this.top = (this.top < this.size) ? this.top : 0;
+        this.element[this.top] = element;
     }
     
-    dequeue() {
+    pop() {
         // LIFO : get most recent
         if (this.isEmpty()) return null;
-        const value = this.getBack();
-        this.element[this.back] = null;
+        const value = this.element[this.top]
+        this.element[this.top] = null;
         return value
-    }
-
-    getBack() {
-        return this.element[this.back]
     }
     
     clear() {
         this.element = new Array()
-        this.back = -1
+        this.top = -1
     }
 }
 
@@ -46,7 +43,7 @@ let onMessageFromWorker = function( event ) {
         case "register":
             if (!(event.data.topic in topicMap)) {
                 topicMap[event.data.topic] = {
-                    messages: new CircularQueue(5),
+                    messages: new CircularStack(5),
                     participants: []
                 }
             }
@@ -68,14 +65,14 @@ let onMessageFromWorker = function( event ) {
             break;
 
         case "publish":
-            topicMap[event.data.topic].messages.enqueue(event.data.message);
+            topicMap[event.data.topic].messages.push(event.data.message);
             document.getElementById("talkerOutput").innerHTML += event.data.message + "\n";
             break;
 
         case "retrieve":
     
             if ( event.data.topic == "/wasm_topic" ) {
-                let msg = topicMap[event.data.topic].messages.dequeue();
+                let msg = topicMap[event.data.topic].messages.pop();
                 
                 if (msg !== null) {
                     document.getElementById("listenerOutput").innerHTML += msg + "\n";
