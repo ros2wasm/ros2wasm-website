@@ -1,6 +1,96 @@
+:root {
+    --dark: #07020D;
+    --flashWhite: #F3F5F7;
+    --platinum: #DEE4E9;
+    --delftBlue: #384364;
+    --glaucous: #6883BA;
+
+    /* CSS HEX */
+    --alice-blue: #CCD7E1;
+    --columbia-blue: #B8C8D5;
+    --charcoal: #36566Bff;
+    --powder-blue: #A9BECCff;
+    --cadet-gray: #99B1C0ff;
+    --prussian-blue: #23344Eff;
+    --rich-black: #151F2E;
+    /* --dark: #06090E; */
+    --pomp: #976391;
+
+}
+
 body {
-    background-color: #140011;
-    color: #B9D6F2;
+    background-color: var(--platinum);
+    color: var(--dark);
+}
+
+.navbar {
+    background-color: var(--dark);
+    overflow: hidden;
+    height: 80px;
+    margin: -8px;
+    display: flex;
+    align-items: center;
+    justify-content: left;
+    position:fixed;
+    width: 100%;
+    top: 0;
+}
+
+.navbar a {
+    float: left;
+    color: var(--platinum);
+    text-align: center;
+    padding: 14px 16px;
+    text-decoration: none;
+    font-weight: bold;
+    font-size: 32px;
+    height: 80px;
+    display: flex;
+    align-items: center;
+    justify-content: right;
+}
+
+.navbar a:hover {
+    background-color: var(--delftBlue);
+    color: var(--flashWhite);
+}
+
+.footer {
+    background-color: var(--delftBlue);
+    margin: -8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.footer-list {
+    display: flex;
+    width: 80%;
+    margin: 10px;
+    padding: 0;
+    justify-content: space-between;
+}
+
+.footer-list li::marker {
+    content: "";
+}
+.footer-list a {
+    color: var(--flashWhite);
+    text-decoration: none;
+}
+
+/* linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0) 80%, rgba(216, 225, 232, 0.95) 100%), */
+.robotImage {
+    background-image: 
+    linear-gradient(180deg, rgba(7, 2, 13, 0.3), rgba(7, 2, 13, 0.6)),
+        url(images/zenRobot_aideal-hwa.jpg);
+    /* width: 7456px; */
+    /* height: 4967px; */
+    height: 500px;
+    background-position: center, center;
+    background-repeat: no-repeat;
+    background-size: cover, 100%;
+    margin: -8px;
 }
 
 .container {
@@ -32,17 +122,17 @@ button {
 }
 
 textarea {
-    width: 40%;
+    width: 80%;
     height: 400px;
     margin: 10px;
     margin-top: 420px;
     border-width: 3px;
     border-radius: 5px;
-    border-color: #35012C;
+    border-color: var(--columbia-blue);
     padding: 20px;
     display: block;
-    background-color: black;
-    color: #5E95CB;
+    background-color: var(--flashWhite);
+    color: var(--dark);
     font-family: 'Ubuntu Mono', 'Noto Mono', 'Liberation Mono';
-    font-size: 14px;
+    font-size: 18px;
 }
