@@ -1,57 +1,51 @@
 :root {
-    /* --dark: #07020D;
-    --flashWhite: #F3F5F7;
-    --platinum: #DEE4E9;
-    --delftBlue: #384364;
-    --glaucous: #6883BA; */
-
     /* CSS HEX */
-    --alice-blue: #edf2fbff;
-    --periwinkle: #ccdbfdff;
-    --jordy-blue: #abc4ffff;
-    --vista-blue: #8195e1ff;
-    --savoy-blue: #5766c3ff;
-    --egyptian-blue: #2d37a5ff;
-    --resolution-blue: #182096;
-    --phthalo-blue: #020887ff;
-    --federal-blue: #020F53;
-    --rich-black: #01161eff;
+    --smoky-black: #12100dff;
+    --dark-gray: #181818;
+    --eerie-black: #1c1816ff;
+    --taupe: #3B3229;
+    --chamoisee: #977e60ff;
+    --carolina-blue: #A5C4D4;
+    --verdegri: #B9E0DE;
+    --timberwolf: #d9d4d4ff;
+    --white-smoke: #F5F4F4;
 
     /* CSS HSL */
-    /* --alice-blue: hsla(219, 64%, 96%, 1);
-    --periwinkle: hsla(222, 92%, 90%, 1);
-    --jordy-blue: hsla(222, 100%, 84%, 1);
-    --vista-blue: hsla(228, 62%, 69%, 1);
-    --savoy-blue: hsla(232, 47%, 55%, 1);
-    --egyptian-blue: hsla(235, 57%, 41%, 1);
-    --phthalo-blue: hsla(237, 97%, 27%, 1);
-    --rich-black: hsla(197, 94%, 6%, 1); */
+    /* --smoky-black: hsla(36, 16%, 6%, 1);
+    --eerie-black: hsla(20, 12%, 10%, 1);
+    --chamoisee: hsla(33, 22%, 48%, 1);
+    --carolina-blue: hsla(203, 57%, 70%, 1);
+    --timberwolf: hsla(0, 6%, 84%, 1); */
 
     --nav-height: 60px;
 
 }
 
 body {
-    background-color: var(--periwinkle);
-    color: var(--phthalo-blue);
+    background-color: white;
+    color: black;
+    margin: 0;
+    padding: 0;
+    justify-content: center;
+    box-sizing: border-box;
 }
 
 .navbar {
-    background-color: var(--federal-blue);
-    overflow: hidden;
+    background-color: black;
+    /* overflow: hidden; */
     height: var(--nav-height);
-    margin: -8px;
     display: flex;
     align-items: center;
     justify-content: space-between;
     position:fixed;
     width: 100%;
     top: 0;
+    box-sizing: border-box;
 }
 
 .navbar>a {
     float: left;
-    color: var(--alice-blue);
+    color: var(--white-smoke);
     text-align: center;
     margin-right: 20px;
     text-decoration: none;
@@ -63,8 +57,8 @@ body {
 }
 
 .navbar>a:hover {
-    background-color: var(--phthalo-blue);
-    color: var(--alice-blue);
+    /* background-color: var(--eerie-black); */
+    color: var(--carolina-blue);
 }
 
 .navbar.dropdown.material-icons {
@@ -72,15 +66,17 @@ body {
 }
 
 .material-icons {
-    color: var(--alice-blue);
+    color: var(--white-smoke);
 }
 
 .footer {
-    background-color: var(--vista-blue);
+    background-color: var(--taupe);
+    color: var(--timberwolf);
     margin: 50px -8px -8px -8px;
     display: flex;
     align-items: center;
     justify-content: center;
+    height: 100px;
 }
 
 .footer-list {
@@ -102,33 +98,31 @@ body {
 /* linear-gradient(180deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0) 80%, rgba(216, 225, 232, 0.95) 100%), */
 .robotImage {
     background-image: 
-    linear-gradient(180deg, hsla(237, 97%, 27%, 0.3) 0%, hsla(237, 97%, 27%, 0.3) 50%, hsla(222, 92%, 90%, 1) 100%),
-        url(images/zenRobot_aideal-hwa.jpg);
+    linear-gradient(90deg, hsla(36, 16%, 6%, 0.7), hsla(222, 92%, 90%, 0)),
+        url(images/robotSphere_xu-haiwei.jpg);
     /* width: 7456px; */
     /* height: 4967px; */
-    height: 300px;
+    height: 400px;
     background-position: center, center;
     background-repeat: no-repeat;
     background-size: cover, 100%;
-    margin: 50px -8px -8px -8px;
+    margin: 50px 0 0 0;
+    display: flex;
+    align-items: center;
 }
 
-.content {
-    width: 100%;
+.pageTitle {
+    margin-left: 10%;
+    font-size: min(8vw, 100px);
+    color: white;
+    font-weight: bolder;
+}
+
+.pageTitle p {
+    margin: 0;
     display: flex;
     justify-content: center;
-}
-
-.contentBody {
-    margin: -50px 0 0 0;
-    border-radius: 10px;
-    /* background-color: var(--alice-blue); */
-    width: 80%;
-    max-width: 800px;
-    padding: 10px 30px;
-    /* box-shadow: -15px 15px 9px 0px rgba(24,32,150,0.2);
-    -webkit-box-shadow: -15px 15px 9px 0px rgba(24,32,150,0.2);
-    -moz-box-shadow: -15px 15px 9px 0px rgba(24,32,150,0.2); */
+    max-height: 100px;
 }
 
 .dropdown {
@@ -152,7 +146,7 @@ body {
     left: 20px;
     width: 150px;
     overflow: auto;
-    box-shadow: 0px 10px 10px 0px hsla(237, 97%, 27%, 0.3);
+    box-shadow: 0px 10px 10px 0px hsla(36, 16%, 6%, 0.3);
     border-radius: 0 0 5px 5px;
 }
 
@@ -162,15 +156,15 @@ body {
 
 .dropdown-content a {
     display: block;
-    background-color: var(--federal-blue);
-    color: var(--alice-blue);
+    background-color: var(--smoky-black);
+    color: var(--timberwolf);
     padding: 5px;
     text-decoration: none;
 }
 
 .dropdown-content a:hover {
-    /* color: var(--federal-blue); */
-    background-color: var(--phthalo-blue);
+    color: black;
+    background-color: var(--verdegri);
 }
 
 
@@ -189,31 +183,48 @@ body {
     margin: 5px;
     width: 40%;
 }
-/* 
-button {
-    color: #B9D6F2;
-    background: #0353A4;
-    font-size: 16px;
-    font-weight: bold;
-    width: 150px;
-    height: 40px;
-    margin: 0px 20px 0px 20px;
-    border-radius: 5px;
-    border-width: 0px;
+
+.banner {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-top: 50px;
+    box-sizing: border-box;
+    height: 400px;
 }
 
-textarea {
-    width: 80%;
-    height: 400px;
-    margin: 10px;
-    margin-top: 420px;
-    border-width: 3px;
-    border-radius: 5px;
-    border-color: var(--columbia-blue);
-    padding: 20px;
-    display: block;
-    background-color: var(--flashWhite);
-    color: var(--dark);
-    font-family: 'Ubuntu Mono', 'Noto Mono', 'Liberation Mono';
-    font-size: 18px;
-} */
+.introText {
+    width: 50%;
+    padding-left: 5%;
+    padding-right: 20px;
+    box-sizing: border-box;
+}
+
+.introImage {
+    width: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+}
+
+.introImage img {
+    /* background: black; */
+    justify-content: center;
+    max-height: 400px;
+    max-width: 95%;
+}
+
+.interactionImage {
+    width: 50%;
+    background: var(--dark-gray);
+    color: red;
+    height: 100%;
+}
+
+.interactionText {
+    width: 50%;
+    height: 100%;
+    background: var(--verdegri);
+}
