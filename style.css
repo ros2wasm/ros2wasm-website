@@ -1,48 +1,186 @@
-body {
-    background-color: #140011;
-    color: #B9D6F2;
+:root {
+    /* CSS HEX */
+    --rich-black: #000a14ff;
+    --rich-gray: #001021ff;
+    --honeydew: #e1efe6ff;
+    --ashes: #c8d3cdff;
+    --ash-gray: #aeb7b3ff;
+    --ash-gray-trans: #aeb7b333;
+
+    /* CSS HSL */
+    /* --rich-black: hsla(210, 100%, 4%, 1);
+    --rich-black-2: hsla(211, 100%, 6%, 1);
+    --honeydew: hsla(141, 30%, 91%, 1);
+    --ash-gray: hsla(147, 11%, 81%, 1);
+    --ash-gray-2: hsla(153, 6%, 70%, 1); */
+
+
+    --nav-width: 300px;
+    --page-width: 900px;
+
+    --font-sans: "Fira Sans", sans-serif;
+    --font-mono: "JetBrains Mono",  "Fira Code", monospace;
 }
 
-.container {
-    justify-content: center;
-    align-items: center;
+html, body {
+    font-family: var(--font-sans);
+    background-color: var(--honeydew);
+    color: black;
+    margin: 0;
+    padding: 0;
+    border: none;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+.navbar {
+    background-color: var(--rich-gray);
+    /* overflow: hidden; */
     display: flex;
-    height: 60px;
+    flex-direction: column;
+    align-content: flex-start;
+    position:fixed;
+    height: 100%;
+    width: var(--nav-width);
+    top: 0;
 }
 
-.box {
-    justify-content: center;
-    align-items: center;
+.logoDiv {
+    width: 100%;
+    height: 180px;
+    background: var(--rich-black);
     display: flex;
-    padding: 30px;
-    margin: 5px;
-    width: 40%;
+    align-items: center;
+    justify-content: center;
 }
 
-button {
-    color: #B9D6F2;
-    background: #0353A4;
-    font-size: 16px;
-    font-weight: bold;
-    width: 150px;
-    height: 40px;
-    margin: 0px 20px 0px 20px;
-    border-radius: 5px;
-    border-width: 0px;
+.logoLink img {
+    height: 100px;
+}
+
+.indexDiv {
+    color: var(--ash-gray);
+}
+
+.indexDiv a {
+    font-size: 14px;
+    text-decoration: none;
+    color: var(--honeydew);
+    height: 24px;
+    width: var(--nav-width);
+    display: flex;
+    align-items: center;
+    padding-left: 32px;
+}
+
+.indexDiv h3 {
+    margin: 20px 0 10px 16px;
+}
+
+.indexDiv ul {
+    padding: 0;
+    margin-top: 0;
+}
+
+.indexDiv li {
+    height: 24px;
+    display: flex;
+    align-items: center;
+}
+
+.indexDiv li:hover {
+    background: var(--ash-gray-trans);
+}
+
+.indexDiv li::marker {
+    content: none;
+}
+
+.footer {
+    background: var(--rich-black);
+    color: var(--honeydew);
+    margin-top: auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 50px;
+}
+
+.footer-list {
+    display: flex;
+    width: 80%;
+    margin: 10px;
+    padding: 0;
+    justify-content: center;
+}
+
+.footer img,
+.footer a {
+    height: 20px;
+    margin: 0 10px 0 10px;
+}
+
+.footer-list li::marker {
+    content: "";
+}
+.footer-list a {
+    color: var(--federal-blue);
+    text-decoration: none;
+    width: 40px;
+}
+
+.robotImage {
+    background-image: 
+    linear-gradient(90deg, hsla(36, 16%, 6%, 0.7), hsla(222, 92%, 90%, 0)),
+        url(images/robotSphere_xu-haiwei.jpg);
+    height: 400px;
+    background-position: center, center;
+    background-repeat: no-repeat;
+    background-size: cover, 100%;
+    margin: 50px 0 0 0;
+    display: flex;
+    align-items: center;
+}
+
+.content {
+    margin: 0 0 0 var(--nav-width);
+    max-width: var(--page-width);
+    background: white;
+    height: 100%;
+    padding: 50px;
+}
+
+.contentBody {
+    height: 100%;
+}
+
+.reportContent {
+    margin: 0 0 0 var(--nav-width);
+    max-width: var(--page-width);
+    height: 100vh;
+    padding: 0;
+}
+
+.reportContent iframe {
+    height: 100%;
+    width: 100%;
+    border: none;
+    margin-bottom: -4px;
+}
+
+.currentPage {
+    background: var(--ash-gray-trans);
 }
 
 textarea {
-    width: 40%;
-    height: 400px;
-    margin: 10px;
-    margin-top: 420px;
-    border-width: 3px;
-    border-radius: 5px;
-    border-color: #35012C;
-    padding: 20px;
-    display: block;
-    background-color: black;
-    color: #5E95CB;
-    font-family: 'Ubuntu Mono', 'Noto Mono', 'Liberation Mono';
-    font-size: 14px;
+    font-family: var(--font-mono);
+    font-size: 16px;
+    width: 100%;
+    height: 300px;
+    background: var(--ash-gray-trans);
+    /* background: var(--rich-black); */
+    border: none;
+    padding: 10px;
 }
