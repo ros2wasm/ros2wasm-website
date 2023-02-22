@@ -5,34 +5,79 @@
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ROS2WASM</title>
+    <link rel="icon" type="image/x-icon" href="/images/favicon.svg">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Fira+Sans">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Fira+Code">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=JetBrains+Mono">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
     <link rel="stylesheet" href="../../style.css">
 </head>
 
 <body>
 
-    <h1>L3. Basic</h1>
+    <div class="navbar">
+        <div class="logoDiv">
+            <a class="logoLink" href="../../">
+                <img src="../../images/circuitBoard_vishnu-mohanan.jpg">
+            </a>
+        </div>
+        
+        <div class="indexDiv">
+            <h3>Interaction Levels</h3>
 
-    <div class="container">
-        <div class="box">
-            <button onclick="startTalker()">Start Talker</button>
-            <button onclick="stopTalker()">Stop Talker</button>
-            <button onclick="clearTalker()">Clear Talker</button>
+            <ul>
+                <li><a href="../demo01/index.html">Non-Interactive</a></li>
+                <li><a href="../demo02/index.html">Minimal</a></li>
+                <li class="currentPage"><a href="../demo03/index.html">Basic</a></li>
+                <li><a href="../demo04/index.html">Intermediate</a></li>
+                <li><a href="../demo05/index.html">Advanced</a></li>
+            </ul>
+
+            <h3>Thesis</h3>
+            <ul>
+                <li><a href="../report/index.html">Report</a></li>
+            </ul>
         </div>
-        <div class="box">
-            <button onclick="startListener()">Start Listener</button>
-            <button onclick="stopListener()">Stop Listener</button>
-            <button onclick="clearListener()">Clear Listener</button>
+
+        <div class="footer">
+            <ul class="footer-list">
+                <li><a href="https://github.com/ihuicatl"><img src="../../images/github-icon.svg"></a></li>
+                <li><a href="https://twitter.com/ihuicatls"><img src="../../images/twitter-icon.svg"></a></li>
+                <li><a href="https://www.linkedin.com/in/isabel-paredes/"><img src="../../images/linkedin-icon.svg"></a></li>
+            </ul>
         </div>
+
+       
     </div>
 
-    <div class="container">
-        <textarea id="talkerOutput"  rows="5"></textarea>
-        <textarea id="listenerOutput"  rows="5"></textarea>
-    </div>
+    <div class="content">
+        <div class="contentBody">
 
+            <h1>L3. Basic</h1>
+
+            <div class="container">
+                <div class="box">
+                    <button onclick="startTalker()">Start Talker</button>
+                    <button onclick="stopTalker()">Stop Talker</button>
+                    <button onclick="clearTalker()">Clear Talker</button>
+                </div>
+                <div class="box">
+                    <button onclick="startListener()">Start Listener</button>
+                    <button onclick="stopListener()">Stop Listener</button>
+                    <button onclick="clearListener()">Clear Listener</button>
+                </div>
+            </div>
+
+            <div class="container">
+                <textarea id="talkerOutput"  rows="5"></textarea>
+                <textarea id="listenerOutput"  rows="5"></textarea>
+            </div>
+        </div>
+    </div>
 
     <script src="rosMain.js"></script>
 
 </body>
 
 </html>
+
