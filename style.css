@@ -65,18 +65,19 @@ html, body {
 }
 
 .indexDiv a {
-    font-size: 14px;
+    /* font-size: 14px; */
     text-decoration: none;
     color: var(--honeydew);
-    height: 24px;
+    height: 28px;
     width: var(--nav-width);
     display: flex;
     align-items: center;
-    padding-left: 32px;
+    padding-left: 36px;
 }
 
 .indexDiv h3 {
-    margin: 20px 0 10px 16px;
+    margin: 32px 0 5px 24px;
+    font-size: medium;
 }
 
 .indexDiv ul {
@@ -85,7 +86,7 @@ html, body {
 }
 
 .indexDiv li {
-    height: 24px;
+    height: 28px;
     display: flex;
     align-items: center;
 }
@@ -148,7 +149,7 @@ html, body {
     margin: 0 0 0 var(--nav-width);
     max-width: var(--page-width);
     background: white;
-    height: 100%;
+    min-height: 100vh;
     padding: 50px;
 }
 
