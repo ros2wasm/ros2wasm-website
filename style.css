@@ -6,6 +6,7 @@
     --ashes: #c8d3cdff;
     --ash-gray: #aeb7b3ff;
     --ash-gray-trans: #aeb7b333;
+    --blue: #654ef0;
 
     /* CSS HSL */
     /* --rich-black: hsla(210, 100%, 4%, 1);
@@ -179,9 +180,30 @@ textarea {
     font-family: var(--font-mono);
     font-size: 16px;
     width: 100%;
-    height: 300px;
+    max-width: 100%;
     background: var(--ash-gray-trans);
-    /* background: var(--rich-black); */
     border: none;
+    border-radius: 5px;
     padding: 10px;
+}
+
+.buttonBox {
+    display: flex;
+    justify-content: space-around;
+    margin: 16px;
+}
+
+button {
+    padding: 5px;
+    min-width: 80px;
+    background: var(--ash-gray);
+    /* color: white; */
+    font-weight: bold;
+    border: none;
+    border-radius: 5px;
+}
+
+button:hover {
+    background: var(--blue);
+    color: white;
 }

@@ -70,23 +70,26 @@
 
             <h1>L3. Basic</h1>
 
-            <div class="container">
-                <div class="box">
-                    <button onclick="startTalker()">Start Talker</button>
-                    <button onclick="stopTalker()">Stop Talker</button>
-                    <button onclick="clearTalker()">Clear Talker</button>
-                </div>
-                <div class="box">
-                    <button onclick="startListener()">Start Listener</button>
-                    <button onclick="stopListener()">Stop Listener</button>
-                    <button onclick="clearListener()">Clear Listener</button>
-                </div>
+            <h3>Publisher</h3>
+
+            <div class="buttonBox">
+                <button onclick="startTalker()">START</button>
+                <button onclick="stopTalker()">STOP</button>
+                <button onclick="clearTalker()">CLEAR</button>
             </div>
 
-            <div class="container">
-                <textarea id="talkerOutput"  rows="5"></textarea>
-                <textarea id="listenerOutput"  rows="5"></textarea>
+            <textarea id="talkerOutput"  rows="8"></textarea>
+
+            <h3>Subscriber</h3>
+
+            <div class="buttonBox">
+                <button onclick="startListener()">START</button>
+                <button onclick="stopListener()">STOP</button>
+                <button onclick="clearListener()">CLEAR</button>
             </div>
+                    
+            <textarea id="listenerOutput"  rows="8"></textarea>
+
         </div>
     </div>
 
