@@ -66,13 +66,62 @@
 
 
 
+    <div class="content" id="contentDiv">
 
+        <input 
+            type="password" 
+            id="userInput" 
+            value=""
+            placeholder="Enter secret word">
 
-    <div class="reportContent">
-        <iframe src="https://ihuicatl.github.io/robosys-thesis/"></iframe>
+        <button id="submitButton" onclick="validatePassword();">Submit</button>
+
+        <div id="reportContent">
+        </div>
+
     </div>
     
-
 </body>
+
+    <script>
+        let attempts = 0;
+
+        function validatePassword() {
+            let userInput = document.getElementById("userInput");
+            let charSum = 0;
+
+            for (let i = 0; i < userInput.value.length; i++) {
+                charSum += userInput.value.charCodeAt(i);
+            }
+            
+            if ((userInput.value.length == 20) && (charSum == 2025)) {
+                console.log("Correct password");
+
+                document.getElementById("userInput").remove();
+                document.getElementById("submitButton").remove();
+
+                let reportFrame = document.createElement("iframe");
+                reportFrame.setAttribute("src", "report.pdf#toolbar=0");
+                reportFrame.style.width = "100%";
+                reportFrame.style.height = "100vh";
+                reportFrame.style.border = "none";
+
+                document.getElementById("contentDiv").style.padding = "0";
+
+                let reportDiv = document.getElementById("reportContent");
+                reportDiv.appendChild(reportFrame);
+
+            } else {
+                attempts += 1;
+                userInput.value = "";
+                userInput.placeholder = "Try again";
+
+                if (attempts > 4) {
+                    userInput.placeholder = "Maybe contact author...";
+                    attempts = 0;
+                }
+            }
+        }
+    </script>
 
 </html>

@@ -161,15 +161,8 @@ html, body {
 .reportContent {
     margin: 0 0 0 var(--nav-width);
     max-width: var(--page-width);
-    height: 100vh;
-    padding: 0;
-}
-
-.reportContent iframe {
     height: 100%;
-    width: 100%;
-    border: none;
-    margin-bottom: -4px;
+    padding: 0;
 }
 
 .currentPage {
@@ -197,7 +190,6 @@ button {
     padding: 5px;
     min-width: 80px;
     background: var(--ash-gray);
-    /* color: white; */
     font-weight: bold;
     border: none;
     border-radius: 5px;
@@ -206,4 +198,13 @@ button {
 button:hover {
     background: var(--blue);
     color: white;
+}
+
+#userInput {
+    min-height: 28px;
+    width: 20em;
+    background: var(--honeydew);
+    border: 1px solid var(--ash-gray);
+    border-radius: 5px;
+    margin-right: 1em;
 }
