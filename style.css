@@ -7,6 +7,8 @@
     --ash-gray: #aeb7b3ff;
     --ash-gray-trans: #aeb7b333;
     --blue: #654ef0;
+    --links: #4C32EE;
+    --gray: #606c71;
 
     /* CSS HSL */
     /* --rich-black: hsla(210, 100%, 4%, 1);
@@ -50,7 +52,7 @@ html, body {
 
 .logoDiv {
     width: 100%;
-    height: 180px;
+    min-height: 180px;
     background: var(--rich-black);
     display: flex;
     align-items: center;
@@ -207,4 +209,33 @@ button:hover {
     border: 1px solid var(--ash-gray);
     border-radius: 5px;
     margin-right: 1em;
+}
+
+.landingImage img {
+    width: calc(100% + 100px);
+    margin: -50px -50px 0 -50px;
+}
+
+.landingBox {
+    display: flex;
+    align-items: center;
+}
+
+.landingBox img {
+    max-width: 40%;
+    max-height: 200px;
+    padding-left: 20px;
+}
+
+.content h1 {
+    border-bottom: 2px solid var(--gray);
+}
+
+.content a {
+    text-decoration: none;
+    color: var(--links);
+}
+
+.content a:hover {
+    font-weight: bold;
 }
