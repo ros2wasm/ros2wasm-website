@@ -185,12 +185,14 @@ textarea {
 .buttonBox {
     display: flex;
     justify-content: space-around;
+    align-items: center;
     margin: 16px;
 }
 
 button {
     padding: 5px;
-    min-width: 80px;
+    min-width: 100px;
+    max-height: 30px;
     background: var(--ash-gray);
     font-weight: bold;
     border: none;
