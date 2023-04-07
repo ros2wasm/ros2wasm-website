@@ -2069,7 +2069,6 @@ var ASM_CONSTS = {
               command: "console",
               message: UTF8ArrayToString(tty.output, 0)
             });
-            // console.log("TTY ", UTF8ArrayToString(tty.output, 0));
             tty.output = [];
           } else {
             if (val != 0) tty.output.push(val);

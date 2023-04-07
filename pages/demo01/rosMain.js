@@ -63,7 +63,16 @@ let onMessageFromWorker = function( event ) {
 
         case "publish":
             topicMap[event.data.topic].messages.push(event.data.message);
-            document.getElementById("talkerOutput").innerHTML += event.data.message + "\n";
+            // document.getElementById("talkerOutput").innerHTML += event.data.message + "\n";
+            break;
+
+        case "console":
+            let rawMessage = event.data.message;
+            // Remove end chars
+            let msg = rawMessage.substr(4, rawMessage.length - 8);
+            let talkerOutput = document.getElementById("talkerOutput");
+            talkerOutput.scrollTop = talkerOutput.scrollHeight;
+            talkerOutput.innerHTML += msg + "\n";
             break;
 
     }

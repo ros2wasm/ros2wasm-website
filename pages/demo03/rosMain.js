@@ -66,21 +66,26 @@ let onMessageFromWorker = function( event ) {
 
         case "publish":
             topicMap[event.data.topic].messages.push(event.data.message);
-            document.getElementById("talkerOutput").innerHTML += event.data.message + "\n";
             break;
 
         case "retrieve":
     
-            if ( event.data.topic == "/wasm_topic" ) {
-                let msg = topicMap[event.data.topic].messages.pop();
-                
-                if (msg !== null) {
-                    document.getElementById("listenerOutput").innerHTML += msg + "\n";
+            let msgPopped = topicMap[event.data.topic].messages.pop();
+            
+            if (msgPopped !== null) {
+                // TODO: broadcast to all subscribers
+                listener.postMessage(msgPopped);
+            } 
+            
+            break;
 
-                    // TODO: broadcast to all subscribers
-                    listener.postMessage(msg);
-                } 
-            }
+        case "console":
+            let rawMessage = event.data.message;
+            // Remove end chars
+            let msg = rawMessage.substr(4, rawMessage.length - 8);
+            let talkerOutput = document.getElementById(event.data.role + "Output");
+            talkerOutput.scrollTop = talkerOutput.scrollHeight;
+            talkerOutput.innerHTML += msg + "\n";
             break;
     }
 }

@@ -2063,6 +2063,12 @@ var ASM_CONSTS = {
         }},default_tty1_ops:{put_char:function(tty, val) {
           if (val === null || val === 10) {
             err(UTF8ArrayToString(tty.output, 0));
+            // NOTE: Added for better messages
+            self.postMessage({
+              command: "console",
+              role:    "talker",
+              message: UTF8ArrayToString(tty.output, 0)
+            });
             tty.output = [];
           } else {
             if (val != 0) tty.output.push(val);
