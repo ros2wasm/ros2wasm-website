@@ -173,7 +173,7 @@ html, body {
 
 textarea {
     font-family: var(--font-mono);
-    font-size: 16px;
+    font-size: 14px;
     width: 100%;
     max-width: 100%;
     background: var(--ash-gray-trans);
