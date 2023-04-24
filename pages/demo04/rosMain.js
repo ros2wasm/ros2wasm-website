@@ -32,9 +32,7 @@ class CircularStack {
 
 
 const topicMap = {};
-let talker = null;
-let listener = null;
-
+let publisher = null;
   
 // Receive messages from workers
 let onMessageFromWorker = function( event ) {
@@ -53,34 +51,34 @@ let onMessageFromWorker = function( event ) {
             break;
 
         case "deregister":
-            let gidIndex = topicMap[event.data.topic].participants.indexOf(gid);
+            let gidIndex = topicMap[event.data.topic].participants.indexOf(event.data.gid);
 
+            // TODO: fix
             // Remove from topic map
-            topicMap[event.data.topic].participants.splice(gidIndex, 1);
+            // topicMap[event.data.topic].participants.splice(gidIndex, 1);
 
-            if (topicMap[event.data.topic].participants.length == 0) {
-                delete topicMap[event.data.topic];
-            }
+            // if (topicMap[event.data.topic].participants.length == 0) {
+            //     delete topicMap[event.data.topic];
+            // }
 
             break;
 
         case "publish":
             topicMap[event.data.topic].messages.push(event.data.message);
-            document.getElementById("talkerOutput").innerHTML += event.data.message + "\n";
+            let ledColor = event.data.message.substr("data: ".length);
+            // Send message to Vernie
+            colorLed(ledColor);
+            document.getElementById("ledCircle").setAttribute("fill", ledColor);
+            // document.getElementById("talkerOutput").innerHTML += ledColor + "\n";
             break;
 
-        case "retrieve":
-    
-            if ( event.data.topic == "/wasm_topic" ) {
-                let msg = topicMap[event.data.topic].messages.pop();
-                
-                if (msg !== null) {
-                    document.getElementById("listenerOutput").innerHTML += msg + "\n";
-
-                    // TODO: broadcast to all subscribers
-                    listener.postMessage(msg);
-                } 
-            }
+        case "console":
+            let rawMessage = event.data.message;
+            // Remove end chars
+            let msg = rawMessage.substr(4, rawMessage.length - 8);
+            let talkerOutput = document.getElementById("talkerOutput");
+            talkerOutput.scrollTop = talkerOutput.scrollHeight;
+            talkerOutput.innerHTML += msg + "\n";
             break;
     }
 }
@@ -88,53 +86,33 @@ let onMessageFromWorker = function( event ) {
 
 // PUBLISHER 
 
-function startTalker() {
+function startPublisher() {
 
-    document.getElementById("talkerOutput").innerHTML += "Publisher initializing.\n";
+    document.getElementById("talkerOutput").innerHTML += "Initializing...\n";
 
-    if (talker === null) {
-        talker = new Worker("../../rosWorkers/talker.js");
+    if (publisher === null) {
+        publisher = new Worker("/rosWorkers/rainbow.js");
     }
 
-    talker.onmessage = onMessageFromWorker;
+    publisher.onmessage = onMessageFromWorker;
 }
 
-function stopTalker() {
-    talker.terminate();
-    talker = null;
-
-    // Terminate subscriber to reestablish connection at restart
-    if (listener !== null) { stopListener(); }
-
-    document.getElementById("talkerOutput").innerHTML += "Publisher terminated.\n\n";
+function stopPublisher() {
+    publisher.terminate();
+    publisher = null;
+    let talkerOutput = document.getElementById("talkerOutput");
+    talkerOutput.scrollTop = talkerOutput.scrollHeight;
+    talkerOutput.innerHTML += "Terminated.\n\n";
 }
 
-function clearTalker() {
+function clearPublisher() {
     document.getElementById("talkerOutput").innerHTML = "";
 }
 
-
-// SUBSCRIBER
-
-function startListener() {
-
-    document.getElementById("listenerOutput").innerHTML += "Subscriber initializing.\n";
-
-    if (listener === null) {
-        listener = new Worker("../../rosWorkers/listener.js");
-    }
-
-    listener.onmessage = onMessageFromWorker;
+function happyVernie() {
+    document.getElementById("vernie").setAttribute("src", "/images/vernie_happy.svg");
 }
 
-function stopListener() {
-    if (listener !== null) {
-        listener.terminate();
-        listener = null;
-    }
-    document.getElementById("listenerOutput").innerHTML += "Subscriber terminated.\n\n";
-}
-
-function clearListener() {
-    document.getElementById("listenerOutput").innerHTML = "";
+function angryVernie() {
+    document.getElementById("vernie").setAttribute("src", "/images/vernie_angry.svg")
 }
