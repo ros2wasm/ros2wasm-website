@@ -15,20 +15,25 @@
 // can continue to use Module afterwards as well.
 var Module = typeof Module != 'undefined' ? Module : {};
 
-// *****************************************************************************
+// See https://caniuse.com/mdn-javascript_builtins_object_assign
 
+// See https://caniuse.com/mdn-javascript_builtins_bigint64array
+
+// --pre-jses are emitted after the Module integration code, so that they can
+// refer to Module (if they choose; they can also define Module)
 function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-let lastMessage = "data: empty";
-let receivedNewMessage = false;
-let topic = "";
+const msgMap = {};
 
+// When a new message is received from main
 self.onmessage = function(event) {
-  // When a new message is received from main
-  lastMessage = event.data;
-  receivedNewMessage = true;
+  msgMap[event.data.topic] = {
+    message: event.data.message.replaceAll(", ", "\n"),
+    isStale: false
+  };
+  
 }
 
 Module["registerParticipant"] = function registerParticipant(topic_name, role)
@@ -47,28 +52,28 @@ Module["registerParticipant"] = function registerParticipant(topic_name, role)
   return gid;
 }
 
-Module["deregisterParticipant"] = function deregisterParticipant(gid)
+Module["deregisterParticipant"] = function deregisterParticipant(gid, role)
 {
   // Deregister participant from main
   self.postMessage({
     command: "deregister",
     topic:   topic,
+    role:    role,
     gid:     gid
   });
 
-  return;
+  // TODO: check deregristration
+  return true;
 }
 
 Module["publishMessage"] = function publishMessage(message, topic_name)
 {
   // Send message to main
-  if (message.startsWith("data:")) {
-    self.postMessage({
-      command: "publish",
-      topic:    topic_name,
-      message: message
-    });
-  }
+  self.postMessage({
+    command: "publish",
+    topic:   topic_name,
+    message: message
+  });
 
   // Assume it gets published
   return true;
@@ -76,27 +81,21 @@ Module["publishMessage"] = function publishMessage(message, topic_name)
 
 Module["retrieveMessage"] = async function retrieveMessage(topic_name)
 {
-  receivedNewMessage = false;
-  // Trigger main to send new message
-  self.postMessage({
-    command: "retrieve",
-    topic:    topic_name
-  });
 
-  await sleep(100);
+  if ((topic_name in msgMap) && !msgMap[topic_name].isStale) {
+    msgMap[topic_name].isStale = true;
+    return msgMap[topic_name].message;
+  } else {
+    // Trigger main to send new message
+    self.postMessage({
+      command: "retrieve",
+      topic:    topic_name
+    });
 
-  return ( receivedNewMessage ? lastMessage : "" );
+    await sleep(10);
+    return "";
+  }
 }
-
-// *****************************************************************************
-
-// See https://caniuse.com/mdn-javascript_builtins_object_assign
-
-// See https://caniuse.com/mdn-javascript_builtins_bigint64array
-
-// --pre-jses are emitted after the Module integration code, so that they can
-// refer to Module (if they choose; they can also define Module)
-// {{PRE_JSES}}
 
 // Sometimes an existing Module object exists with properties
 // meant to overwrite the default module functionality. Here
