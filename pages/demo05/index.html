@@ -15,7 +15,7 @@
 
 <body>
 
-    <script src="rosMain.js"></script>
+    <script src="/pages/demo05/rosMain05.js"></script>
     <script src="/dist/bundle.js"></script>
 
     <div class="navbar">
@@ -66,32 +66,55 @@
     <div class="content">
         <div class="contentBody">
 
-            <h1>Vernie</h1>
+            <h1>L4. Intermediate</h1>
+
+            <h3>Topics</h3>
 
             <div class="buttonBox">
-                <button onclick="connect(); happyVernie();">CONNECT</button>
-                <img id="vernie" 
-                    src="/images/vernie_angry.svg"
-                    alt="Vernie's head"
-                    height="80px" />
-    
-                <button onclick="disconnect(); angryVernie();">DISCONNECT</button>
+                <button onclick="refreshTopics()">REFRESH</button>
             </div>
+            
+            <textarea id="topicOutput" rows="8"></textarea>
 
-            <h3>Publish LED colors</h3>
+            <h3>Publisher</h3>
 
             <div class="buttonBox">
-                <svg width = "30px" height="30px">  
-                    <circle cx="15px" cy="15px" r="15" fill="black"/>  
-                    <circle id="ledCircle" cx="15px" cy="15px" r="14" fill="white"/>
-                </svg>
-                <button onclick="startPublisher()">START</button>
-                <button onclick="stopPublisher()">STOP</button>
-                <button onclick="clearPublisher()">CLEAR</button>
+                <button onclick="startTalker()">START</button>
+                <button onclick="stopTalker()">STOP</button>
+                <button onclick="clearTalker()">CLEAR</button>
             </div>
 
-            <textarea id="talkerOutput"  rows="12"></textarea>
+            <textarea id="talkerOutput"  rows="8"></textarea>
 
+            <h3>Subscriber</h3>
+
+            <div class="buttonBox">
+                <button onclick="startListener()">START</button>
+                <button onclick="stopListener()">STOP</button>
+                <button onclick="clearListener()">CLEAR</button>
+            </div>
+
+            <textarea id="listenerOutput"  rows="8"></textarea>
+
+            <h3>Server</h3>
+
+            <div class="buttonBox">
+                <button onclick="startServer()">START</button>
+                <button onclick="stopServer()">STOP</button>
+                <button onclick="clearServer()">CLEAR</button>
+            </div>
+
+            <textarea id="serverOutput"  rows="8"></textarea>
+
+            <h3>Client</h3>
+
+            <div class="buttonBox">
+                <button onclick="startClient()">START</button>
+                <button onclick="stopClient()">STOP</button>
+                <button onclick="clearClient()">CLEAR</button>
+            </div>
+                    
+            <textarea id="clientOutput"  rows="8"></textarea>
 
         </div>
     </div>
