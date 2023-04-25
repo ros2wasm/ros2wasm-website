@@ -83,6 +83,6 @@ let onMessageFromWorker = function( event ) {
 
 document.getElementById("talkerOutput").innerHTML += "Publisher initializing.\n";
 
-let talker = new Worker("../../rosWorkers/talker.js");
+let talker = new Worker("/rosWorkers/talker.js");
 
 talker.onmessage = onMessageFromWorker;

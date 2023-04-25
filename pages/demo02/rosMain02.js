@@ -1,4 +1,4 @@
-class CircularStack {
+class MessageStack {
     constructor(size) {
         this.element = [];
         this.size = size
@@ -34,6 +34,10 @@ class CircularStack {
 const topicMap = {};
 let talker = null;
   
+const publisherRoles = ["publisher", "service_server", "action_server"];
+const subscriberRoles = ["subscriber", "service_client", "action_client"];
+
+  
 // Receive messages from workers
 let onMessageFromWorker = function( event ) {
     switch( event.data.command )
@@ -41,41 +45,77 @@ let onMessageFromWorker = function( event ) {
         case "register":
             if (!(event.data.topic in topicMap)) {
                 topicMap[event.data.topic] = {
-                    messages: new CircularStack(5),
-                    participants: []
+                    messages: new MessageStack(10),
+                    publishers: [],
+                    subscribers: [],
                 }
             }
 
-            topicMap[event.data.topic].participants.push(event.data.gid);
+
+            if (publisherRoles.includes(event.data.role)) {
+                topicMap[event.data.topic].publishers.push(event.data.gid);
+            } 
+            else if (subscriberRoles.includes(event.data.role)) {
+                topicMap[event.data.topic].subscribers.push(event.data.gid);
+            }
+            else {
+                console.log("INVALID ROLE ", event.data.role);
+            }
             
             break;
 
-        case "deregister":
-            let gidIndex = topicMap[event.data.topic].participants.indexOf(gid);
+            case "deregister":
 
-            // Remove from topic map
-            topicMap[event.data.topic].participants.splice(gidIndex, 1);
-
-            if (topicMap[event.data.topic].participants.length == 0) {
-                delete topicMap[event.data.topic];
+            let gidIndex = "";
+            if (publisherRoles.includes(event.data.role)) {
+                gidIndex = topicMap[event.data.topic].publishers.indexOf(event.data.gid);
+                if (gidIndex > -1) {
+                    topicMap[event.data.topic].publishers.splice(gidIndex, 1);
+                };
+                // if (topicMap[event.data.topic].publishers.length == 0) {
+                //     delete topicMap[event.data.topic];
+                // }
+            } 
+            else if (subscriberRoles.includes(event.data.role)) {
+                gidIndex = topicMap[event.data.topic].subscribers.indexOf(event.data.gid);
+                if (gidIndex > -1) {
+                    topicMap[event.data.topic].subscribers.splice(gidIndex, 1);
+                };
+                // if (topicMap[event.data.topic].subscribers.length == 0) {
+                //     delete topicMap[event.data.topic];
+                // }
+            }
+            else {
+                console.log("INVALID GID ", event.data.gid);
             }
 
             break;
 
         case "publish":
-            topicMap[event.data.topic].messages.push(event.data.message);
-            // document.getElementById("talkerOutput").innerHTML += event.data.message + "\n";
+            case "publish":
+            // Remove new lines to prevent truncation
+            let pubMsg = event.data.message.replaceAll(/\n/g, ", ");
+            topicMap[event.data.topic].messages.push(pubMsg);
+            break;
+
+        case "retrieve":
+    
+            let msgPopped = topicMap[event.data.topic].messages.pop();
+            
+            if (msgPopped !== null) {
+                // Broadcast to all subscribers
+            } 
+            
             break;
 
         case "console":
             let rawMessage = event.data.message;
             // Remove end chars
             let msg = rawMessage.substr(4, rawMessage.length - 8);
-            let talkerOutput = document.getElementById("talkerOutput");
+            let talkerOutput = document.getElementById(event.data.role + "Output");
             talkerOutput.scrollTop = talkerOutput.scrollHeight;
             talkerOutput.innerHTML += msg + "\n";
             break;
-
     }
 }
 
@@ -87,7 +127,7 @@ function startTalker() {
     document.getElementById("talkerOutput").innerHTML += "Publisher initializing.\n";
 
     if (talker === null) {
-        talker = new Worker("../../rosWorkers/talker.js");
+        talker = new Worker("/rosWorkers/talker.js");
     }
 
     talker.onmessage = onMessageFromWorker;
