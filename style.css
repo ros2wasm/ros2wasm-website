@@ -156,7 +156,6 @@ html, body {
     padding: 50px;
 .external_website {
 	max-width: var(--page-width);
-	width: 100vh;
 	background: white;
 	height: calc(100vh - 100px);
 	padding: 0px;
