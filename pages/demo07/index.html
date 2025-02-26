@@ -15,6 +15,9 @@
 
 <body>
 
+    <script src="/pages/demo05/rosMain05.js"></script>
+    <script src="/dist/bundle.js"></script>
+
     <div class="navbar">
         <div class="logoDiv">
             <a class="logoLink" href="../../">
@@ -27,12 +30,12 @@
 
             <ul>
                 <li><a href="/pages/demo01/index.html">D1 - Non-Interactive</a></li>
-                <li class="currentPage"><a href="/pages/demo02/index.html">D2 - Minimal</a></li>
+                <li><a href="/pages/demo02/index.html">D2 - Minimal</a></li>
                 <li><a href="/pages/demo03/index.html">D3 - Basic</a></li>
                 <li><a href="/pages/demo04/index.html">D4 - Vernie</a></li>
                 <li><a href="/pages/demo05/index.html">D5 - Intermediate</a></li>
                 <li><a href="/pages/demo06/index.html">D6 - JupyterLite</a></li>
-                <li><a href="/pages/demo07/index.html">D7 - Swift-Simulation</a></li>
+                <li class="currentPage"><a href="/pages/demo07/index.html">D7 - Swift-Simulation</a></li>
             </ul>
 
             <h3>SOURCES</h3>
@@ -58,30 +61,16 @@
                 <li><a href="https://www.linkedin.com/in/isabel-paredes/"><img src="/images/linkedin-icon.svg"></a></li>
             </ul>
         </div>
-
-       
     </div>
 
     <div class="content">
-        <div class="contentBody">
-            <h1>L2. Minimal</h1>
-
-            <div class="container">
-                <div class="buttonBox">
-                    <button onclick="startTalker()">START</button>
-                    <button onclick="stopTalker()">STOP</button>
-                    <button onclick="clearTalker()">CLEAR</button>
-                </div>
-            </div>
-
-            <div class="container">
-                <textarea id="talkerOutput"  rows="10"></textarea>
-            </div>
+        <div class="external_website">
+            <!-- <object  width="100%" height="600%" data="https://mbatc.github.io/swift-wasm-test/"></object> -->
+            <iframe src="https://mbatc.github.io/swift-wasm-test/" frameborder="0"></iframe>
         </div>
     </div>
-
-    <script src="/pages/demo02/rosMain02.js"></script>
 
 </body>
 
 </html>
+
