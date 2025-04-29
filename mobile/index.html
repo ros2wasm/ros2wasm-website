@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ROS2WASM</title>
+    <link rel="icon" type="image/x-icon" href="/images/favicon.svg">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Fira+Sans">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Fira+Code">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=JetBrains+Mono">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
+    <link rel="stylesheet" href="/style.css">
+</head>
+
+<body>
+    <script src="/pages/demo05/rosMain05.js"></script>
+    <script src="/dist/bundle.js"></script>
+
+    <div class="content_mobile">
+        <div class="contentBody">
+
+            <h1><center> Demo Mobile </center> </h1>
+
+            <h3>Topics</h3>
+
+            <div class="buttonBox">
+                <button onclick="refreshTopics()">REFRESH</button>
+            </div>
+            
+            <textarea id="topicOutput" rows="8"></textarea>
+
+            <h3>Publisher</h3>
+
+            <div class="buttonBox">
+                <button onclick="startTalker()">START</button>
+                <button onclick="stopTalker()">STOP</button>
+                <button onclick="clearTalker()">CLEAR</button>
+            </div>
+
+            <textarea id="talkerOutput"  rows="8"></textarea>
+
+            <h3>Subscriber</h3>
+
+            <div class="buttonBox">
+                <button onclick="startListener()">START</button>
+                <button onclick="stopListener()">STOP</button>
+                <button onclick="clearListener()">CLEAR</button>
+            </div>
+
+            <textarea id="listenerOutput"  rows="8"></textarea>
+
+            <h3>Server</h3>
+
+            <div class="buttonBox">
+                <button onclick="startServer()">START</button>
+                <button onclick="stopServer()">STOP</button>
+                <button onclick="clearServer()">CLEAR</button>
+            </div>
+
+            <textarea id="serverOutput"  rows="8"></textarea>
+
+            <h3>Client</h3>
+
+            <div class="buttonBox">
+                <button onclick="startClient()">START</button>
+                <button onclick="stopClient()">STOP</button>
+                <button onclick="clearClient()">CLEAR</button>
+            </div>
+                    
+            <textarea id="clientOutput"  rows="8"></textarea>
+
+            <h4>
+              <center> Check <a href ="https://ros2wasm.dev"> ros2wasm.dev</a> on a desktop/tablet for more examples! </center>
+            </h4>
+        </div>
+    </div>
+        <div class="footer">
+            <ul class="footer-list">
+                <li><a href="https://github.com/RoboStack/ros-humble"><img src="/images/github-icon.svg"></a></li>
+            </ul>
+        </div>
+
+</body>
+</html>
