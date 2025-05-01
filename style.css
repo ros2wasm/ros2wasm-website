@@ -154,6 +154,14 @@ html, body {
     background: white;
     min-height: 100vh;
     padding: 50px;
+}
+.content_mobile{
+    margin: 0 0 0 0;
+    max-width: 100%;
+    background: white;
+    min-height: 100vh;
+    padding: 0px;
+}
 .external_website {
 	max-width: var(--page-width);
 	background: white;

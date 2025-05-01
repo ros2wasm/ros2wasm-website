@@ -235,7 +235,10 @@ function clearServer() {
 function startClient() {
 
     document.getElementById("clientOutput").innerHTML += "Client initializing.\n";
-
+    
+    if (client !== null){
+        stopClient();
+    }
     if (client === null) {
         client = new Worker("../../rosWorkers/client.js");
     }
